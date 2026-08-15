@@ -18,6 +18,11 @@ test("server-renders the ETF dividend calculator", async () => {
   const html = await response.text();
   assert.match(html, /ETF FLOW/);
   assert.match(html, /국내 · 미국 ETF 배당 계산기/);
+  assert.match(html, /배당으로 만드는/);
+  assert.match(html, /내 투자 리듬에 맞는/);
+  assert.match(html, /월배당/);
+  assert.match(html, /JEPI/);
+  assert.match(html, /TIGER 미국배당다우존스/);
   assert.match(html, /세후 월평균 배당금/);
   assert.match(html, /내 포트폴리오/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|Your site is taking shape/);

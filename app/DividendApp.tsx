@@ -14,6 +14,60 @@ const quickPicks = [
   { symbol: "458730.KS", label: "TIGER 미국배당다우존스", sub: "국내 배당형" },
 ];
 
+const themeFilters = ["전체", "월배당", "배당성장", "국내상장", "미국상장"] as const;
+type ThemeFilter = (typeof themeFilters)[number];
+
+const featuredEtfs: Array<{
+  symbol: string;
+  name: string;
+  description: string;
+  labels: Exclude<ThemeFilter, "전체">[];
+  tone: string;
+}> = [
+  {
+    symbol: "JEPI",
+    name: "JPMorgan Equity Premium Income ETF",
+    description: "인컴을 중심으로 설계된 미국 대표 월분배 ETF",
+    labels: ["월배당", "미국상장"],
+    tone: "lime",
+  },
+  {
+    symbol: "JEPQ",
+    name: "JPMorgan Nasdaq Equity Premium Income ETF",
+    description: "나스닥 주식과 인컴 전략을 함께 담은 월분배 ETF",
+    labels: ["월배당", "미국상장"],
+    tone: "blue",
+  },
+  {
+    symbol: "SCHD",
+    name: "Schwab U.S. Dividend Equity ETF",
+    description: "미국 우량 배당주를 선별해 담는 배당성장 ETF",
+    labels: ["배당성장", "미국상장"],
+    tone: "yellow",
+  },
+  {
+    symbol: "VIG",
+    name: "Vanguard Dividend Appreciation ETF",
+    description: "꾸준히 배당을 늘려온 미국 기업에 투자하는 ETF",
+    labels: ["배당성장", "미국상장"],
+    tone: "lilac",
+  },
+  {
+    symbol: "458730.KS",
+    name: "TIGER 미국배당다우존스",
+    description: "국내 계좌에서 만나는 미국 배당성장 테마 ETF",
+    labels: ["배당성장", "국내상장"],
+    tone: "coral",
+  },
+  {
+    symbol: "069500.KS",
+    name: "KODEX 200",
+    description: "한국 대표 기업을 폭넓게 담는 국내 코어 ETF",
+    labels: ["국내상장"],
+    tone: "mint",
+  },
+];
+
 const emptyDraft = (): Draft => ({
   symbol: "", name: "", market: "KR", currency: "KRW", source: "manual", price: 0,
   shares: 0, investment: 0, inputMode: "shares", ttmDividend: 0, lastDividend: 0,
@@ -34,6 +88,7 @@ export default function DividendApp() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [activeTheme, setActiveTheme] = useState<ThemeFilter>("전체");
 
   useEffect(() => {
     try {
@@ -56,6 +111,9 @@ export default function DividendApp() {
 
   const totals = useMemo(() => calculatePortfolio(holdings), [holdings]);
   const portfolioYield = totals.valueKrw > 0 ? (totals.ttmGrossKrw / totals.valueKrw) * 100 : 0;
+  const visibleFeaturedEtfs = activeTheme === "전체"
+    ? featuredEtfs
+    : featuredEtfs.filter((etf) => etf.labels.includes(activeTheme));
   const updateDraft = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }));
 
   async function searchEtfs(event?: React.FormEvent) {
@@ -95,6 +153,12 @@ export default function DividendApp() {
     setDraft((current) => ({ ...current, market, currency: market === "KR" ? "KRW" : "USD", taxRate: market === "KR" ? 15.4 : 15 }));
   }
 
+  function selectFeaturedEtf(etf: (typeof featuredEtfs)[number]) {
+    setMode("auto");
+    document.getElementById("calculator")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    void loadQuote(etf.symbol, etf.name);
+  }
+
   function addHolding(event: React.FormEvent) {
     event.preventDefault();
     const fx = draft.currency === "USD" ? draft.fxRate : 1;
@@ -117,28 +181,94 @@ export default function DividendApp() {
     <main>
       <header className="site-header">
         <a className="brand" href="#top" aria-label="ETF Flow 홈"><span className="brand-mark">↗</span><span>ETF FLOW</span></a>
-        <nav aria-label="주요 메뉴"><a href="#calculator">계산기</a><a href="#portfolio">내 포트폴리오</a></nav>
+        <nav aria-label="주요 메뉴"><a href="#themes">ETF 테마</a><a href="#calculator">계산기</a><a href="#portfolio">내 포트폴리오</a></nav>
         <span className="local-save"><i /> 이 기기에 자동 저장</span>
       </header>
 
       <section className="hero" id="top">
-        <div className="eyebrow"><span>●</span> 국내 · 미국 ETF 배당 계산기</div>
-        <h1>내 ETF 배당금,<br /><em>한눈에 계산하세요.</em></h1>
-        <p>종목을 검색하거나 직접 입력하면 최근 배당률부터 세후 월평균 배당금까지 자동으로 계산해 드려요.</p>
-        <div className="hero-proof"><span>✓ 최근 12개월 기준</span><span>✓ 세전·세후 비교</span><span>✓ 원화 자동 환산</span></div>
+        <div className="hero-copy">
+          <div className="eyebrow"><span>●</span> 국내 · 미국 ETF 배당 계산기</div>
+          <h1>배당으로 만드는<br /><em>나만의 현금흐름</em></h1>
+          <p>ETF를 고르고 보유 수량을 입력해 보세요. 최근 분배 내역부터 세후 월평균 배당금까지 한눈에 정리해 드립니다.</p>
+          <div className="hero-actions">
+            <a className="hero-primary" href="#themes">ETF 테마 둘러보기 <span>→</span></a>
+            <a className="hero-secondary" href="#calculator">바로 계산하기</a>
+          </div>
+        </div>
+        <div className="hero-dashboard" aria-label="배당 계산 주요 기능">
+          <div className="hero-dashboard-top"><span>MY DIVIDEND ROUTINE</span><i>LIVE</i></div>
+          <div className="hero-dashboard-main">
+            <span>국내와 미국 ETF를 한 번에</span>
+            <strong>한눈에 보고,<br />가볍게 계산해요.</strong>
+          </div>
+          <div className="hero-metrics">
+            <div><span>기준</span><b>최근 분배 내역</b></div>
+            <div><span>비교</span><b>세전 · 세후</b></div>
+            <div><span>환산</span><b>원화 기준</b></div>
+          </div>
+        </div>
       </section>
 
-      <section className="workspace" id="calculator">
+      <section className="themes-section" id="themes">
+        <div className="editorial-heading">
+          <div><span className="section-kicker">DIVIDEND THEMES</span><h2>내 투자 리듬에 맞는<br />ETF를 찾아보세요.</h2></div>
+          <p>관심 있는 테마를 고른 뒤 계산기에 불러오세요.<br />실제 계산에는 조회 시점의 최신 데이터가 사용됩니다.</p>
+        </div>
+        <div className="theme-chips" role="group" aria-label="ETF 테마 필터">
+          {themeFilters.map((theme) => (
+            <button
+              key={theme}
+              type="button"
+              className={activeTheme === theme ? "active" : ""}
+              aria-pressed={activeTheme === theme}
+              onClick={() => setActiveTheme(theme)}
+            >
+              {theme}
+            </button>
+          ))}
+        </div>
+        <div className="featured-grid" aria-live="polite" aria-busy={loading}>
+          {visibleFeaturedEtfs.map((etf) => (
+            <article className={`featured-card ${etf.tone}`} key={etf.symbol}>
+              <div className="featured-card-top"><span>{etf.labels[0]}</span><b>{etf.symbol.replace(".KS", "")}</b></div>
+              <div className="featured-symbol" aria-hidden="true">{etf.symbol.slice(0, 2)}</div>
+              <div className="featured-copy">
+                <h3>{etf.name}</h3>
+                <p>{etf.description}</p>
+              </div>
+              <div className="featured-footer">
+                <div>{etf.labels.map((label) => <span key={label}>{label}</span>)}</div>
+                <button
+                  type="button"
+                  onClick={() => selectFeaturedEtf(etf)}
+                  disabled={loading}
+                  aria-label={`${etf.name} 계산기에 불러오기`}
+                >
+                  {loading ? "불러오는 중" : "계산해 보기"}<span aria-hidden="true">↗</span>
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="calculator-section" id="calculator">
+        <div className="calculator-intro">
+          <span className="section-kicker">DIVIDEND CALCULATOR</span>
+          <h2>보유 ETF의 배당,<br />숫자로 확인하세요.</h2>
+          <p>종목을 자동 조회하거나 알고 있는 값을 직접 입력할 수 있습니다.</p>
+        </div>
+        <div className="workspace">
         <div className="input-panel">
           <div className="section-heading"><span className="step">01</span><div><h2>ETF 추가하기</h2><p>자동 조회 후에도 모든 값을 수정할 수 있어요.</p></div></div>
           <div className="tabs" role="tablist" aria-label="입력 방식">
-            <button className={mode === "auto" ? "active" : ""} onClick={() => setMode("auto")} role="tab">종목 자동조회</button>
-            <button className={mode === "manual" ? "active" : ""} onClick={() => { setMode("manual"); setDraft((d) => ({ ...d, source: "manual" })); }} role="tab">직접 입력</button>
+            <button type="button" className={mode === "auto" ? "active" : ""} onClick={() => setMode("auto")} role="tab" aria-selected={mode === "auto"}>종목 자동조회</button>
+            <button type="button" className={mode === "manual" ? "active" : ""} onClick={() => { setMode("manual"); setDraft((d) => ({ ...d, source: "manual" })); }} role="tab" aria-selected={mode === "manual"}>직접 입력</button>
           </div>
           {mode === "auto" && <div className="search-area">
             <form className="search-box" onSubmit={searchEtfs}><span aria-hidden="true">⌕</span><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ETF 종목명 또는 티커 (예: SCHD)" aria-label="ETF 검색" /><button disabled={loading}>{loading ? "조회 중" : "검색"}</button></form>
-            {results.length > 0 && <div className="search-results">{results.map((item) => <button key={item.symbol} onClick={() => loadQuote(item.symbol, item.name)}><span><strong>{item.name}</strong><small>{item.symbol} · {item.exchange}</small></span><b>선택</b></button>)}</div>}
-            <p className="quick-label">빠른 선택</p><div className="quick-picks">{quickPicks.map((item) => <button key={item.symbol} onClick={() => loadQuote(item.symbol, item.label)} disabled={loading}><strong>{item.label}</strong><span>{item.sub}</span></button>)}</div>
+            {results.length > 0 && <div className="search-results">{results.map((item) => <button type="button" key={item.symbol} onClick={() => loadQuote(item.symbol, item.name)} disabled={loading}><span><strong>{item.name}</strong><small>{item.symbol} · {item.exchange}</small></span><b>선택</b></button>)}</div>}
+            <p className="quick-label">빠른 선택</p><div className="quick-picks">{quickPicks.map((item) => <button type="button" key={item.symbol} onClick={() => loadQuote(item.symbol, item.label)} disabled={loading}><strong>{item.label}</strong><span>{item.sub}</span></button>)}</div>
           </div>}
           {message && <div className="notice" role="status"><span>i</span>{message}</div>}
 
@@ -167,6 +297,7 @@ export default function DividendApp() {
           <div className="allocation"><div><span>시장 비중</span><small>평가금액 기준</small></div><div className="bar"><i style={{ width: `${totals.valueKrw ? (totals.krValue / totals.valueKrw) * 100 : 0}%` }} /></div><div className="legend"><span><i className="kr" />국내 {totals.valueKrw ? Math.round((totals.krValue / totals.valueKrw) * 100) : 0}%</span><span><i className="us" />미국 {totals.valueKrw ? Math.round((totals.usValue / totals.valueKrw) * 100) : 0}%</span></div></div>
           <p className="summary-note">연환산 예상치는 최근 분배금 × 지급 주기로 계산한 참고값입니다.</p>
         </aside>
+        </div>
       </section>
 
       <section className="portfolio" id="portfolio">
