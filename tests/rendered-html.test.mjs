@@ -67,7 +67,7 @@ test("every stock in the shared verified universe server-renders content, SEO, s
       const html = rawHtml.replace(/<!--[\s\S]*?-->/g, "");
       const canonicalUrl = `${ORIGIN}/${stock.slug}`;
       const name = displayName(stock);
-      const title = `${name} 배당금 계산기 | 배당한눈`;
+      const title = `${name} 배당금 계산기 | 배당계산기`;
       const description = `${name}의 현재가와 최근 12개월 실제 주당 배당금으로 월평균·분기·연간 예상 배당금과 목표 투자금을 계산하세요.`;
 
       assert.match(html, /<html\s+lang=["']ko["']/i);
@@ -78,8 +78,8 @@ test("every stock in the shared verified universe server-renders content, SEO, s
       assert.ok(tagHasAttributes(html, "meta", { property: "og:title", content: title }));
       assert.ok(tagHasAttributes(html, "meta", { property: "og:url", content: canonicalUrl }));
       assert.ok(tagHasAttributes(html, "meta", { property: "og:locale", content: "ko_KR" }));
-      assert.ok(tagHasAttributes(html, "meta", { property: "og:site_name", content: "배당한눈" }));
-      assert.ok(tagHasAttributes(html, "meta", { property: "og:image", content: `${ORIGIN}/og-dividend-glance.png` }));
+      assert.ok(tagHasAttributes(html, "meta", { property: "og:site_name", content: "배당계산기" }));
+      assert.ok(tagHasAttributes(html, "meta", { property: "og:image", content: `${ORIGIN}/og-dividend-calculator.png` }));
       assert.ok(tagHasAttributes(html, "meta", { name: "twitter:card", content: "summary_large_image" }));
 
       assert.ok(html.includes(`>${stock.symbol} 배당금 계산기</h1>`));
@@ -100,10 +100,10 @@ test("every stock in the shared verified universe server-renders content, SEO, s
       assert.equal(application.url, canonicalUrl);
       assert.equal(application.description, stock.description);
       assert.equal(application.applicationCategory, "FinanceApplication");
-      assert.equal(application.alternateName, "배당한눈");
+      assert.equal(application.alternateName, "배당계산기");
       assert.equal(faq.mainEntity.length, stock.faqs.length);
       assert.ok(faq.mainEntity.every((item) => item["@type"] === "Question" && item.acceptedAnswer?.["@type"] === "Answer"));
-      assert.doesNotMatch(rawHtml, /배당렌즈|Dividend Lens/);
+      assert.doesNotMatch(rawHtml, /배당렌즈|Dividend Lens|배당한눈|Dividend at a Glance/);
     });
   }
 });

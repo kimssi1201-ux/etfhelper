@@ -493,8 +493,8 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
       <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-4">
           <Link href="/xom" className="flex items-center gap-2.5 no-underline">
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-zinc-950 text-sm font-black text-white">한</span>
-            <span><b className="block text-sm font-black tracking-[-0.02em]">배당한눈</b><small className="block text-[10px] font-medium text-zinc-500">Dividend at a Glance</small></span>
+            <span className="grid h-9 w-9 place-items-center rounded-lg bg-zinc-950 text-sm font-black text-white">배</span>
+            <span><b className="block text-sm font-black tracking-[-0.02em]">배당계산기</b><small className="block text-[10px] font-medium text-zinc-500">Dividend Calculator</small></span>
           </Link>
           <StockSelector key={config.slug} current={config} />
         </div>
@@ -703,7 +703,7 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
         <aside className="rounded-xl border border-zinc-200 bg-zinc-50 p-5 text-sm leading-7 text-zinc-600"><b className="text-zinc-950">안내</b><p className="mt-1">본 서비스의 정보와 계산 결과는 참고용이며 투자 권유가 아닙니다. 주가, 배당금, 환율 및 세금은 실제 거래 시점과 시장 상황에 따라 달라질 수 있습니다.</p></aside>
       </div>
 
-      <footer className="border-t border-zinc-200 bg-zinc-50"><div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-8 text-xs leading-5 text-zinc-500 sm:flex-row sm:items-center sm:justify-between"><div><b className="text-zinc-900">배당한눈</b><p>미국 배당주 현금흐름 계산기</p></div><p className="sm:text-right">데이터: Financial Modeling Prep Stable API<br />최근 12개월 실제 배당금 합계 기준</p></div></footer>
+      <footer className="border-t border-zinc-200 bg-zinc-50"><div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-8 text-xs leading-5 text-zinc-500 sm:flex-row sm:items-center sm:justify-between"><div><b className="text-zinc-900">배당계산기</b><p>미국 배당주 현금흐름 계산기</p></div><p className="sm:text-right">데이터: Financial Modeling Prep Stable API<br />최근 12개월 실제 배당금 합계 기준</p></div></footer>
     </main>
   );
 }
