@@ -33,30 +33,30 @@ async function getRequestOrigin() {
 
 export async function generateMetadata(): Promise<Metadata> {
   const origin = await getRequestOrigin();
-  const title = "배당렌즈 | 미국 주식·ETF 배당금 계산기";
+  const title = "배당한눈 | 미국 배당주 계산기";
   const description =
-    "실제 최근 12개월 배당 이력과 현재가를 바탕으로 미국 주식·ETF의 월평균·분기·연간 배당금을 계산해 보세요.";
-  const socialImage = new URL("/og-dividend-lens.png", origin).toString();
+    "실제 최근 12개월 배당 이력과 현재가를 바탕으로 미국 배당주의 월평균·분기·연간 배당금을 계산해 보세요.";
+  const socialImage = new URL("/og-dividend-glance.png", origin).toString();
 
   return {
     metadataBase: origin,
     title: {
       default: title,
-      template: "%s | 배당렌즈",
+      template: "%s | 배당한눈",
     },
     description,
-    applicationName: "배당렌즈",
+    applicationName: "배당한눈",
     openGraph: {
       title,
       description,
       type: "website",
       locale: "ko_KR",
-      siteName: "배당렌즈",
+      siteName: "배당한눈",
       images: [{
         url: socialImage,
         width: 1731,
         height: 909,
-        alt: "배당렌즈 미국 주식·ETF 배당금 계산기",
+        alt: "배당한눈 미국 배당주 계산기",
       }],
     },
     twitter: {

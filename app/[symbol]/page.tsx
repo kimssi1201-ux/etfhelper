@@ -48,9 +48,9 @@ export async function generateMetadata({ params }: StockPageProps): Promise<Meta
 
   const origin = await getRequestOrigin();
   const canonicalUrl = new URL(`/${config.slug}`, origin).toString();
-  const socialImage = new URL("/og-dividend-lens.png", origin).toString();
+  const socialImage = new URL("/og-dividend-glance.png", origin).toString();
   const displayName = getDisplayName(config);
-  const title = `${displayName} 배당금 계산기 | 배당렌즈`;
+  const title = `${displayName} 배당금 계산기 | 배당한눈`;
   const description = `${displayName}의 현재가와 최근 12개월 실제 주당 배당금으로 월평균·분기·연간 예상 배당금과 목표 투자금을 계산하세요.`;
 
   return {
@@ -65,7 +65,7 @@ export async function generateMetadata({ params }: StockPageProps): Promise<Meta
       url: canonicalUrl,
       type: "website",
       locale: "ko_KR",
-      siteName: "배당렌즈",
+      siteName: "배당한눈",
       images: [{
         url: socialImage,
         width: 1731,
@@ -100,7 +100,7 @@ export default async function StockPage({ params }: StockPageProps) {
         "@type": "WebApplication",
         "@id": `${canonicalUrl}#application`,
         name: `${displayName} 배당금 계산기`,
-        alternateName: "배당렌즈",
+        alternateName: "배당한눈",
         url: canonicalUrl,
         description: config.description,
         applicationCategory: "FinanceApplication",
