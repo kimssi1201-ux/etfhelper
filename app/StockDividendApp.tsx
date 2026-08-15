@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   Area,
   AreaChart,
@@ -41,6 +41,17 @@ const dividendRangeDays: Record<Exclude<DividendRange, "ALL">, number> = {
   "1Y": 366,
   "2Y": 731,
   "5Y": 1827,
+};
+const stockKindLabels: Record<string, { group: string; label: string; search: string }> = {
+  stock: { group: "미국 주식", label: "주식", search: "주식 stock" },
+  etf: { group: "미국 ETF", label: "ETF", search: "etf 펀드" },
+  security: { group: "기타 미국 종목", label: "종목", search: "종목 security" },
+};
+const payoutFrequencyLabels: Record<string, { compact: string; hero: string; search: string }> = {
+  monthly: { compact: "월", hero: "월 분배", search: "월배당 월분배" },
+  quarterly: { compact: "분기", hero: "분기 배당", search: "분기배당 분기분배" },
+  weekly: { compact: "주", hero: "주간 배당", search: "주배당 주간배당" },
+  variable: { compact: "변동", hero: "지급 주기 변동", search: "변동 수시" },
 };
 
 const won = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 });
@@ -119,6 +130,117 @@ function SkeletonPanel() {
       </div>
       <span className="sr-only">데이터를 불러오고 있습니다.</span>
     </div>
+  );
+}
+
+function StockSelector({ current }: { current: StockConfig }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [tickerError, setTickerError] = useState("");
+  const selectableStocks = useMemo<readonly StockConfig[]>(
+    () => stocks.some((stock) => stock.slug === current.slug) ? stocks : [current, ...stocks],
+    [current],
+  );
+  const normalizedQuery = query.trim().toLocaleLowerCase("ko-KR");
+  const matches = useMemo(() => {
+    if (!normalizedQuery) return selectableStocks;
+    return selectableStocks.filter((stock) => {
+      const payoutLabel = payoutFrequencyLabels[stock.payoutFrequency]?.search ?? "";
+      const kindLabel = stockKindLabels[stock.kind]?.search ?? "종목 security";
+      return `${stock.symbol} ${stock.nameKo} ${stock.nameEn} ${kindLabel} ${payoutLabel}`.toLocaleLowerCase("ko-KR").includes(normalizedQuery);
+    });
+  }, [normalizedQuery, selectableStocks]);
+  const groups = ["stock", "etf", "security"].map((kind) => ({
+    key: kind,
+    label: stockKindLabels[kind].group,
+    items: matches.filter((stock) => stock.kind === kind),
+  })).filter((group) => group.items.length > 0);
+
+  function closeSelector(target: HTMLElement) {
+    const details = target.closest("details");
+    details?.removeAttribute("open");
+    setOpen(false);
+  }
+
+  function openTicker(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const ticker = query.trim().toUpperCase();
+    if (!/^[A-Z][A-Z0-9]{0,9}$/.test(ticker)) {
+      setTickerError("영문 티커 1~10자를 입력해 주세요.");
+      return;
+    }
+    const curated = stocks.find((stock) => stock.symbol.toUpperCase() === ticker);
+    window.location.assign(`/${curated?.slug ?? ticker.toLowerCase()}`);
+  }
+
+  return (
+    <details className="group relative w-[min(52vw,17rem)] sm:w-72" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-zinc-300 bg-white px-3 text-left text-sm font-bold text-zinc-900 hover:border-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0">
+          <span className="block truncate">{current.symbol}</span>
+          <span className="hidden truncate text-[10px] font-medium text-zinc-500 sm:block">{current.nameKo}</span>
+        </span>
+        <span className="shrink-0 text-xs text-zinc-400 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
+        <span className="sr-only">종목 선택 메뉴 열기</span>
+      </summary>
+
+      {open && <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[min(92vw,24rem)] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl">
+        <div className="border-b border-zinc-200 p-3">
+          <label htmlFor="stock-selector-search" className="mb-2 block text-xs font-extrabold text-zinc-700">종목명 검색 또는 티커 바로 열기</label>
+          <form className="flex gap-2" onSubmit={openTicker}>
+            <input
+              id="stock-selector-search"
+              type="search"
+              value={query}
+              onChange={(event) => { setQuery(event.target.value); setTickerError(""); }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  closeSelector(event.currentTarget);
+                  event.currentTarget.closest("details")?.querySelector<HTMLElement>("summary")?.focus();
+                }
+              }}
+              aria-describedby={tickerError ? "stock-ticker-error" : undefined}
+              placeholder="예: AAPL 또는 애플"
+              autoComplete="off"
+              spellCheck={false}
+              className="h-11 min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 text-base text-zinc-950 placeholder:text-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+            />
+            <button type="submit" disabled={!query.trim()} className="min-h-11 shrink-0 rounded-lg bg-zinc-950 px-3 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-40">티커 열기</button>
+          </form>
+          {tickerError && <p id="stock-ticker-error" className="mt-2 text-xs leading-5 text-rose-600" role="alert">{tickerError}</p>}
+          <p className="mt-2 text-[11px] text-zinc-500" aria-live="polite">{matches.length}개 종목</p>
+        </div>
+
+        <nav className="max-h-80 overflow-y-auto overscroll-contain p-2" aria-label="지원 종목 검색 결과">
+          {groups.map((group) => (
+            <section key={group.key} aria-labelledby={`stock-group-${group.key}`}>
+              <h2 id={`stock-group-${group.key}`} className="sticky top-0 z-10 bg-white/95 px-2 py-2 text-[10px] font-black uppercase tracking-[0.08em] text-zinc-400 backdrop-blur">{group.label} · {group.items.length}</h2>
+              <div className="space-y-1">
+                {group.items.map((stock) => {
+                  const active = stock.slug === current.slug;
+                  return (
+                    <Link
+                      key={stock.slug}
+                      href={`/${stock.slug}`}
+                      aria-current={active ? "page" : undefined}
+                      onClick={(event) => closeSelector(event.currentTarget)}
+                      className={`flex min-h-12 items-center justify-between gap-3 rounded-lg px-3 py-2 no-underline ${active ? "bg-zinc-950 text-white" : "text-zinc-900 hover:bg-zinc-100"}`}
+                    >
+                      <span className="min-w-0">
+                        <b className="block text-sm font-black">{stock.symbol}</b>
+                        <small className={`block truncate text-xs ${active ? "text-zinc-300" : "text-zinc-500"}`}>{stock.nameKo} · {stock.nameEn}</small>
+                      </span>
+                      <span className={`shrink-0 rounded-full px-2 py-1 text-[9px] font-extrabold ${active ? "bg-white/15 text-white" : "bg-zinc-100 text-zinc-500"}`}>{payoutFrequencyLabels[stock.payoutFrequency]?.compact ?? "기타"}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+          {matches.length === 0 && <p className="px-4 py-10 text-center text-sm text-zinc-500">일치하는 지원 종목이 없습니다.</p>}
+        </nav>
+      </div>}
+    </details>
   );
 }
 
@@ -347,15 +469,12 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
             <span className="grid h-9 w-9 place-items-center rounded-lg bg-zinc-950 text-sm font-black text-white">DL</span>
             <span><b className="block text-sm font-black tracking-[-0.02em]">배당렌즈</b><small className="block text-[10px] font-medium text-zinc-500">Dividend Lens</small></span>
           </Link>
-          <nav className="hidden items-center gap-1 md:flex" aria-label="지원 종목">
-            {stocks.map((stock) => <Link key={stock.slug} href={`/${stock.slug}`} aria-current={stock.slug === config.slug ? "page" : undefined} className={`min-h-10 rounded-lg px-3 py-2.5 text-sm font-bold no-underline ${stock.slug === config.slug ? "bg-zinc-950 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950"}`}>{stock.symbol}</Link>)}
-          </nav>
-          <label className="md:hidden"><span className="sr-only">종목 선택</span><select aria-label="종목 선택" value={config.slug} onChange={(event) => window.location.assign(`/${event.target.value}`)} className="h-11 rounded-lg border border-zinc-300 bg-white px-3 text-sm font-bold">{stocks.map((stock) => <option key={stock.slug} value={stock.slug}>{stock.nameKo} ({stock.symbol})</option>)}</select></label>
+          <StockSelector current={config} />
         </div>
       </header>
 
       <section className="mx-auto w-full max-w-3xl px-4 pb-9 pt-14 text-center md:pt-20">
-        <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">미국 {config.kind === "etf" ? "ETF" : "주식"} · {config.payoutFrequency === "monthly" ? "월 분배" : "분기 배당"}</span>
+        <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">미국 {stockKindLabels[config.kind]?.label ?? "종목"} · {payoutFrequencyLabels[config.payoutFrequency]?.hero ?? "지급 주기 확인"}</span>
         <h1 className="mt-5 text-4xl font-black tracking-[-0.055em] text-zinc-950 md:text-5xl">{config.symbol} 배당금 계산기</h1>
         <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-zinc-600 md:text-lg">{config.headline}</p>
         <p className="mt-2 text-sm text-zinc-500">FMP Stable API의 실제 시세·배당 이력을 사용합니다.</p>
@@ -521,7 +640,7 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
             <div className="rounded-xl bg-emerald-50 p-5"><h3 className="font-black text-emerald-950">주요 특징</h3><ul className="mt-3 space-y-3 text-sm leading-6 text-emerald-950">{config.features.map((item) => <li key={item} className="flex gap-2"><span aria-hidden="true">✓</span><span>{item}</span></li>)}</ul></div>
             <div className="rounded-xl bg-rose-50 p-5"><h3 className="font-black text-rose-950">투자 유의사항</h3><ul className="mt-3 space-y-3 text-sm leading-6 text-rose-950">{config.cautions.map((item) => <li key={item} className="flex gap-2"><span aria-hidden="true">!</span><span>{item}</span></li>)}</ul></div>
           </div>
-          {data && <dl className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4"><Metric label="구분" value={config.kind === "etf" ? "ETF" : "개별주"} /><Metric label="섹터" value={data.profile.sector || "정보 없음"} /><Metric label="산업" value={data.profile.industry || "정보 없음"} /><Metric label="거래소" value={data.profile.exchange || "정보 없음"} /></dl>}
+          {data && <dl className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4"><Metric label="구분" value={stockKindLabels[config.kind]?.label ?? "종목"} /><Metric label="섹터" value={data.profile.sector || "정보 없음"} /><Metric label="산업" value={data.profile.industry || "정보 없음"} /><Metric label="거래소" value={data.profile.exchange || "정보 없음"} /></dl>}
         </section>
 
         <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-7" aria-labelledby="faq-heading">
