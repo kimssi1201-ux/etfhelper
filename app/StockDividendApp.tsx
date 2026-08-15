@@ -429,6 +429,7 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
   const calculationFxRate = fxRate ?? 0;
   const hasFxRate = fxRate !== null;
   const usingManualFx = apiFxRate === null && manualFxRate !== null;
+  const usingEcbFx = fxAvailability?.source === "European Central Bank" && apiFxRate !== null;
   const fxUnavailable = data !== null && apiFxRate === null;
   const fxPlanRestricted = fxAvailability?.status === "plan-restricted";
   const priceUsd = data?.quote.price ?? manual.price;
@@ -563,8 +564,23 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
             <>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <div><h3 className="text-lg font-black">{data?.name || config.nameEn}</h3><p className="mt-1 text-xs text-zinc-500">{config.symbol} · {data?.profile.exchange || "직접 입력"}</p></div>
-                <div className="text-right"><p className="text-xs font-bold text-zinc-500">USD/KRW 환율</p><p className="mt-1 text-sm font-black">{fxRate === null ? "FMP 제공 없음" : `1 USD = ${decimal.format(fxRate)} KRW${usingManualFx ? " · 직접 입력" : ""}`}</p></div>
+                <div className="text-right">
+                  <p className="text-xs font-bold text-zinc-500">USD/KRW 환율</p>
+                  <p className="mt-1 text-sm font-black">{fxRate === null ? "자동 환율 없음" : `1 USD = ${decimal.format(fxRate)} KRW${usingManualFx ? " · 직접 입력" : ""}`}</p>
+                  {!usingManualFx && fxAvailability?.source && (
+                    <p className="mt-1 text-[11px] font-semibold text-zinc-500">
+                      {fxAvailability.source === "European Central Bank" ? "ECB 기준환율" : "FMP Stable API"}
+                      {fxAvailability.asOf ? ` · ${fxAvailability.asOf}` : ""}
+                    </p>
+                  )}
+                </div>
               </div>
+
+              {usingEcbFx && (
+                <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-xs leading-5 text-sky-900" role="note">
+                  {fxAvailability?.message ?? "유럽중앙은행(ECB)의 최근 영업일 기준환율을 참고용으로 자동 적용했습니다. 실제 거래 환율과 다를 수 있습니다."}
+                </div>
+              )}
 
               {fxUnavailable && (
                 <div id="fx-plan-notice" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-amber-950" role="status">

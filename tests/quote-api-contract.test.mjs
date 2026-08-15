@@ -76,7 +76,7 @@ test("target calculator rounds required shares up so the net target is met", asy
   });
 });
 
-test("market data uses only official FMP Stable endpoints and the apikey header", async () => {
+test("market data uses only the official FMP Stable and ECB endpoints with private FMP authentication", async () => {
   const fmpSource = await readFile(new URL("../lib/fmp.ts", import.meta.url), "utf8");
   const implementationSource = await Promise.all([
     readSourceTree(new URL("../app/", import.meta.url)),
@@ -84,6 +84,10 @@ test("market data uses only official FMP Stable endpoints and the apikey header"
   ]).then((parts) => parts.join("\n"));
 
   assert.match(fmpSource, /const FMP_BASE_URL\s*=\s*["']https:\/\/financialmodelingprep\.com["']/);
+  assert.match(fmpSource, /const ECB_[A-Z_]*URL\s*=\s*(?:\r?\n\s*)?["']https:\/\/data-api\.ecb\.europa\.eu\/service\/data\/EXR\/D\.USD(?:\+|%2B)KRW\.EUR\.SP00\.A/);
+  assert.match(fmpSource, /lastNObservations(?:=|["']?\s*[:,]\s*["'])[2-9]\d*/);
+  assert.match(fmpSource, /detail(?:=|["']?\s*[:,]\s*["'])dataonly/);
+  assert.match(fmpSource, /format(?:=|["']?\s*[:,]\s*["'])csvdata/);
   const endpointPaths = [...fmpSource.matchAll(/fetchFmpArray\(\s*["'](\/stable\/[^"']+)["']/g)]
     .map((match) => match[1])
     .sort();
@@ -97,6 +101,7 @@ test("market data uses only official FMP Stable endpoints and the apikey header"
   assert.match(fmpSource, /headers:\s*\{\s*apikey:\s*apiKey\s*\}/);
   assert.doesNotMatch(fmpSource, /searchParams\.(?:set|append)\(\s*["']apikey["']/i);
   assert.doesNotMatch(fmpSource, /[?&]apikey=/i);
+  assert.doesNotMatch(fmpSource, /data-api\.ecb\.europa\.eu[^\s"'`]*(?:apikey|api.?key|token|secret)/i);
   assert.match(fmpSource, /fetchFmpArray\(\s*["']\/stable\/dividends["']\s*,\s*commonParams\s*,\s*CACHE_TTL\.dividends\s*\)/);
   assert.doesNotMatch(fmpSource, /fetchFmpArray\(\s*["']\/stable\/dividends["'][\s\S]{0,180}?\blimit\b/i);
   assert.doesNotMatch(implementationSource, /yahoo/i);

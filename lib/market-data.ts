@@ -16,6 +16,8 @@ export type DividendPoint = {
 export type FxAvailability = {
   status: "available" | "plan-restricted" | "unavailable";
   message: string | null;
+  source: "FMP Stable API" | "European Central Bank" | null;
+  asOf: string | null;
 };
 
 export type StockMarketData = {

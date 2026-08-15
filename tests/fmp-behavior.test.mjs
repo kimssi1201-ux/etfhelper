@@ -9,10 +9,11 @@ import ts from "typescript";
 
 const ORIGIN = "https://dividend.example";
 const FMP_ORIGIN = "https://financialmodelingprep.com";
+const ECB_ORIGIN = "https://data-api.ecb.europa.eu";
+const ECB_PATH = "/service/data/EXR/D.USD+KRW.EUR.SP00.A";
 const TEST_API_KEY = "test-only-fmp-secret-never-bundle";
 const PROJECT_ROOT = fileURLToPath(new URL("../", import.meta.url));
 const execFileAsync = promisify(execFile);
-const FX_PLAN_MESSAGE = "현재 FMP 요금제에서는 USD/KRW 환율을 제공하지 않습니다. 원화 계산에는 직접 입력한 환율이 필요합니다.";
 const FX_UNAVAILABLE_MESSAGE = "USD/KRW 환율 데이터를 불러오지 못했습니다. 원화 계산에는 직접 입력한 환율이 필요합니다.";
 let workerPromise;
 
@@ -27,19 +28,66 @@ function jsonResponse(payload, status = 200) {
   });
 }
 
-function createFmpStub({ fxStatus = 200, dividendsStatus = 200 } = {}) {
+function defaultEcbRows() {
+  const commonDate = dateBefore(2);
+  return {
+    commonDate,
+    rows: [
+      { currency: "KRW", date: dateBefore(1), value: 1_536 },
+      { currency: "KRW", date: commonDate, value: 1_500 },
+      { currency: "USD", date: commonDate, value: 1.2 },
+      { currency: "USD", date: dateBefore(3), value: 1.1 },
+    ],
+  };
+}
+
+function csvResponse(rows, status = 200) {
+  const header = "KEY,FREQ,CURRENCY,CURRENCY_DENOM,EXR_TYPE,EXR_SUFFIX,TIME_PERIOD,OBS_VALUE";
+  const lines = rows.map(({ currency, date, value }) => (
+    `EXR.D.${currency}.EUR.SP00.A,D,${currency},EUR,SP00,A,${date},${value}`
+  ));
+  return new Response([header, ...lines].join("\r\n"), {
+    status,
+    headers: { "content-type": "text/csv; charset=utf-8" },
+  });
+}
+
+function createUpstreamStub({ fxStatus = 200, dividendsStatus = 200, ecbStatus = 200, ecbRows } = {}) {
   const calls = [];
+  const ecbFixture = defaultEcbRows();
   const fetch = async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     const headers = input instanceof Request ? input.headers : new Headers(init?.headers);
-    calls.push({ url, apiKey: headers.get("apikey") });
+    calls.push({
+      url,
+      headers,
+      apiKey: headers.get("apikey"),
+      next: init?.next ?? null,
+      cf: init?.cf ?? null,
+    });
+
+    if (url.origin === ECB_ORIGIN) {
+      if (decodeURIComponent(url.pathname) !== ECB_PATH) {
+        throw new Error(`Unexpected ECB request: ${url.pathname}?${url.searchParams}`);
+      }
+      if (ecbStatus !== 200) {
+        return new Response("private ECB upstream detail must remain private", {
+          status: ecbStatus,
+          headers: { "content-type": "text/plain" },
+        });
+      }
+      return csvResponse(ecbRows ?? ecbFixture.rows);
+    }
 
     if (url.origin !== FMP_ORIGIN) throw new Error(`Unexpected upstream origin: ${url.origin}`);
 
     const symbol = url.searchParams.get("symbol");
     if (url.pathname === "/stable/quote" && symbol === "USDKRW") {
       if (fxStatus !== 200) return jsonResponse({ error: "upstream FX detail must remain private" }, fxStatus);
-      return jsonResponse([{ price: 1_321.55 }]);
+      return jsonResponse([{
+        price: 1_321.55,
+        timestamp: Math.floor(Date.parse(`${dateBefore(1)}T00:00:00Z`) / 1000),
+      }]);
     }
     if (url.pathname === "/stable/quote" && symbol === "XOM") {
       return jsonResponse([{
@@ -75,7 +123,7 @@ function createFmpStub({ fxStatus = 200, dividendsStatus = 200 } = {}) {
     throw new Error(`Unexpected FMP request: ${url.pathname}?${url.searchParams}`);
   };
 
-  return { calls, fetch };
+  return { calls, fetch, ecbCommonDate: ecbFixture.commonDate };
 }
 
 async function loadWorker() {
@@ -91,7 +139,7 @@ async function requestWithFmpStub(options) {
   const originalFetch = globalThis.fetch;
   const hadApiKey = Object.hasOwn(process.env, "FMP_API_KEY");
   const originalApiKey = process.env.FMP_API_KEY;
-  const stub = createFmpStub(options);
+  const stub = createUpstreamStub(options);
   globalThis.fetch = stub.fetch;
   process.env.FMP_API_KEY = TEST_API_KEY;
 
@@ -107,6 +155,7 @@ async function requestWithFmpStub(options) {
       headers: new Headers(response.headers),
       text: await response.text(),
       calls: stub.calls,
+      ecbCommonDate: stub.ecbCommonDate,
     };
   } finally {
     globalThis.fetch = originalFetch;
@@ -185,45 +234,81 @@ function suspiciousFxLiterals(source, fileName) {
   return findings;
 }
 
-test("official dividend request has no unsupported limit parameter", async () => {
+test("FMP FX remains preferred and the official dividend request has no unsupported limit parameter", async () => {
   const result = await requestWithFmpStub();
   assert.equal(result.status, 200);
   const dividendCall = result.calls.find((call) => call.url.pathname === "/stable/dividends");
   assert.ok(dividendCall, "the Stable dividends endpoint must be requested");
   assert.deepEqual([...dividendCall.url.searchParams.entries()], [["symbol", "XOM"]]);
   assert.equal(dividendCall.url.searchParams.has("limit"), false);
-  assert.ok(result.calls.every((call) => call.apiKey === TEST_API_KEY));
+  const fmpCalls = result.calls.filter((call) => call.url.origin === FMP_ORIGIN);
+  assert.ok(fmpCalls.every((call) => call.apiKey === TEST_API_KEY));
+  assert.equal(result.calls.some((call) => call.url.origin === ECB_ORIGIN), false, "ECB must not be called when FMP FX works");
   assert.doesNotMatch(result.text, new RegExp(TEST_API_KEY));
 
   const body = JSON.parse(result.text);
   assert.equal(body.fxRate, 1_321.55);
-  assert.deepEqual(body.availability.fx, { status: "available", message: null });
+  assert.equal(body.availability.fx.status, "available");
+  assert.equal(body.availability.fx.message, null);
+  assert.equal(body.availability.fx.source, "FMP Stable API");
+  assert.equal(typeof body.availability.fx.asOf, "string");
 });
 
-test("FX-only 402 remains a successful payload with an honest null and warning", async () => {
+test("FMP FX 402 falls back to the latest common-date ECB cross-rate without sending the API key", async () => {
   const result = await requestWithFmpStub({ fxStatus: 402 });
   assert.equal(result.status, 200);
   const body = JSON.parse(result.text);
 
-  assert.equal(body.fxRate, null);
-  assert.deepEqual(body.availability.fx, {
-    status: "plan-restricted",
-    message: FX_PLAN_MESSAGE,
-  });
+  assert.equal(body.fxRate, 1_250, "USD/KRW must equal same-date KRW/EUR divided by USD/EUR");
+  assert.equal(body.availability.fx.status, "available");
+  assert.match(body.availability.fx.message, /유럽중앙은행|ECB/);
+  assert.match(body.availability.fx.message, /실제 거래 환율/);
+  assert.equal(body.availability.fx.source, "European Central Bank");
+  assert.equal(body.availability.fx.asOf, result.ecbCommonDate);
+
+  const fmpFxCall = result.calls.find((call) => (
+    call.url.origin === FMP_ORIGIN
+    && call.url.pathname === "/stable/quote"
+    && call.url.searchParams.get("symbol") === "USDKRW"
+  ));
+  assert.ok(fmpFxCall, "FMP FX must be attempted first");
+  assert.equal(fmpFxCall.apiKey, TEST_API_KEY);
+
+  const ecbCalls = result.calls.filter((call) => call.url.origin === ECB_ORIGIN);
+  assert.equal(ecbCalls.length, 1);
+  const [ecbCall] = ecbCalls;
+  assert.equal(decodeURIComponent(ecbCall.url.pathname), ECB_PATH);
+  assert.equal(ecbCall.url.searchParams.get("format"), "csvdata");
+  assert.equal(ecbCall.url.searchParams.get("detail"), "dataonly");
+  assert.ok(Number(ecbCall.url.searchParams.get("lastNObservations")) >= 2, "multiple observations are needed to find a common date");
+  assert.equal(ecbCall.apiKey, null);
+  assert.equal(ecbCall.headers.get("authorization"), null);
+  assert.equal(
+    [...ecbCall.url.searchParams.keys()].some((key) => /api.?key|token|secret/i.test(key)),
+    false,
+  );
+  assert.doesNotMatch(ecbCall.url.href, new RegExp(TEST_API_KEY));
+  assert.deepEqual(ecbCall.next, { revalidate: 21_600 });
+  assert.equal(ecbCall.cf?.cacheEverything, true);
+  assert.equal(ecbCall.cf?.cacheTtl, 21_600);
+
   assert.doesNotMatch(result.text, /upstream FX detail must remain private/i);
   assert.doesNotMatch(result.text, new RegExp(TEST_API_KEY));
 });
 
-test("generic FX failure is non-fatal and never replaced by an invented rate", async () => {
-  const result = await requestWithFmpStub({ fxStatus: 503 });
+test("FMP and ECB FX failures remain non-fatal and preserve the manual fallback", async () => {
+  const result = await requestWithFmpStub({ fxStatus: 402, ecbStatus: 503 });
   assert.equal(result.status, 200);
   const body = JSON.parse(result.text);
 
   assert.equal(body.fxRate, null);
-  assert.deepEqual(body.availability.fx, {
-    status: "unavailable",
-    message: FX_UNAVAILABLE_MESSAGE,
-  });
+  assert.equal(body.availability.fx.status, "unavailable");
+  assert.equal(body.availability.fx.message, FX_UNAVAILABLE_MESSAGE);
+  assert.equal(body.availability.fx.source, null);
+  assert.equal(body.availability.fx.asOf, null);
+  assert.equal(result.calls.filter((call) => call.url.origin === ECB_ORIGIN).length, 1);
+  assert.doesNotMatch(result.text, /upstream FX detail|private ECB upstream detail/i);
+  assert.doesNotMatch(result.text, new RegExp(TEST_API_KEY));
 });
 
 test("402 for a required dataset returns a distinct safe plan error", async () => {
@@ -250,9 +335,12 @@ test("nullable FX contract and deployable files contain neither a secret nor a f
 
   assert.match(marketSource, /fxRate:\s*number\s*\|\s*null/);
   assert.match(marketSource, /status:\s*["']available["']\s*\|\s*["']plan-restricted["']\s*\|\s*["']unavailable["']/);
+  assert.match(marketSource, /source:\s*["']FMP Stable API["']\s*\|\s*["']European Central Bank["']\s*\|\s*null/);
+  assert.match(marketSource, /asOf:\s*string\s*\|\s*null/);
   assert.match(fmpSource, /response\.status\s*===\s*402[\s\S]{0,100}?FMP_PLAN_RESTRICTED/);
   assert.doesNotMatch(fmpSource, /\b(?:const|let|var)\s+apiKey\s*=\s*["'`][^"'`]+["'`]/);
   assert.doesNotMatch(clientBuild, /financialmodelingprep\.com\/stable/i);
+  assert.doesNotMatch(clientBuild, /data-api\.ecb\.europa\.eu/i);
 
   const suspiciousRates = [
     ...suspiciousFxLiterals(fmpSource, "lib/fmp.ts"),

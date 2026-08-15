@@ -8,6 +8,8 @@ import type {
 import { getStockBySymbol } from "@/lib/stocks";
 
 const FMP_BASE_URL = "https://financialmodelingprep.com";
+const ECB_USD_KRW_URL =
+  "https://data-api.ecb.europa.eu/service/data/EXR/D.USD+KRW.EUR.SP00.A?lastNObservations=5&format=csvdata&detail=dataonly";
 
 const CACHE_TTL = {
   quote: 60 * 60,
@@ -20,10 +22,10 @@ const CACHE_TTL = {
 const QUOTE_DELAY_THRESHOLD_MS = 20 * 60 * 1000;
 const MAX_FUTURE_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
-const FX_PLAN_RESTRICTED_MESSAGE =
-  "현재 FMP 요금제에서는 USD/KRW 환율을 제공하지 않습니다. 원화 계산에는 직접 입력한 환율이 필요합니다.";
 const FX_UNAVAILABLE_MESSAGE =
   "USD/KRW 환율 데이터를 불러오지 못했습니다. 원화 계산에는 직접 입력한 환율이 필요합니다.";
+const ECB_FX_MESSAGE =
+  "유럽중앙은행(ECB)의 최근 영업일 기준환율입니다. 실제 거래 환율과 다를 수 있습니다.";
 
 type FmpRecord = Record<string, unknown>;
 
@@ -135,6 +137,99 @@ function positiveNumber(...values: unknown[]) {
   return number !== null && number > 0 ? number : null;
 }
 
+function parseCsvRow(line: string) {
+  const values: string[] = [];
+  let value = "";
+  let quoted = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    if (character === '"') {
+      if (quoted && line[index + 1] === '"') {
+        value += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (character === "," && !quoted) {
+      values.push(value);
+      value = "";
+    } else {
+      value += character;
+    }
+  }
+
+  values.push(value);
+  return values;
+}
+
+async function fetchEcbUsdKrwRate() {
+  let response: Response;
+  try {
+    response = await fetch(ECB_USD_KRW_URL, {
+      headers: { accept: "text/csv" },
+      next: { revalidate: CACHE_TTL.fx },
+      cf: { cacheEverything: true, cacheTtl: CACHE_TTL.fx },
+    } as FmpFetchInit);
+  } catch {
+    throw new Error("ECB_FX_UPSTREAM_ERROR");
+  }
+
+  if (!response.ok) throw new Error("ECB_FX_UPSTREAM_ERROR");
+
+  let csv: string;
+  try {
+    csv = await response.text();
+  } catch {
+    throw new Error("ECB_FX_UPSTREAM_ERROR");
+  }
+
+  const lines = csv.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  if (lines.length < 2) throw new Error("ECB_FX_NO_DATA");
+
+  const headers = parseCsvRow(lines[0]).map((header) => header.replace(/^\uFEFF/, "").trim().toUpperCase());
+  const currencyIndex = headers.indexOf("CURRENCY");
+  const frequencyIndex = headers.indexOf("FREQ");
+  const denominatorIndex = headers.indexOf("CURRENCY_DENOM");
+  const dateIndex = headers.indexOf("TIME_PERIOD");
+  const valueIndex = headers.indexOf("OBS_VALUE");
+  if (
+    currencyIndex < 0
+    || frequencyIndex < 0
+    || denominatorIndex < 0
+    || dateIndex < 0
+    || valueIndex < 0
+  ) throw new Error("ECB_FX_NO_DATA");
+
+  const observations = new Map<string, Partial<Record<"USD" | "KRW", number>>>();
+  for (const line of lines.slice(1)) {
+    const row = parseCsvRow(line);
+    const currency = row[currencyIndex]?.trim().toUpperCase();
+    if (currency !== "USD" && currency !== "KRW") continue;
+    if (row[frequencyIndex]?.trim().toUpperCase() !== "D") continue;
+    if (row[denominatorIndex]?.trim().toUpperCase() !== "EUR") continue;
+
+    const date = validDateKey(row[dateIndex]?.trim());
+    const value = positiveNumber(row[valueIndex]?.trim());
+    if (!date || value === null) continue;
+
+    const observation = observations.get(date) ?? {};
+    observation[currency] = value;
+    observations.set(date, observation);
+  }
+
+  const latest = [...observations.entries()]
+    .filter(([, observation]) => observation.USD !== undefined && observation.KRW !== undefined)
+    .sort(([left], [right]) => right.localeCompare(left))[0];
+  if (!latest) throw new Error("ECB_FX_NO_DATA");
+
+  const [asOf, observation] = latest;
+  const rate = observation.KRW! / observation.USD!;
+  if (!Number.isFinite(rate) || rate <= 0) throw new Error("ECB_FX_NO_DATA");
+
+  return { rate, asOf };
+}
+
 function nullableText(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
@@ -145,7 +240,8 @@ function dateKey(date: Date) {
 
 function validDateKey(value: unknown) {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  return Number.isFinite(Date.parse(`${value}T00:00:00Z`)) ? value : null;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value ? value : null;
 }
 
 function epochSeconds(value: unknown) {
@@ -217,27 +313,45 @@ type FxResult = {
   availability: FxAvailability;
 };
 
-async function getOptionalFxRate(): Promise<FxResult> {
+export async function getUsdKrwRate(): Promise<FxResult> {
   try {
     const rows = await fetchFmpArray("/stable/quote", { symbol: "USDKRW" }, CACHE_TTL.fx);
     const rate = positiveNumber(rows[0].price);
     if (rate === null) throw fixedError("FMP_NO_DATA");
+    const timestamp = epochSeconds(rows[0].timestamp);
     return {
       rate,
-      availability: { status: "available", message: null },
+      availability: {
+        status: "available",
+        message: null,
+        source: "FMP Stable API",
+        asOf: validDateKey(rows[0].date) ?? (timestamp === null ? null : dateKey(new Date(timestamp * 1000))),
+      },
     };
   } catch (error) {
     if (!(error instanceof FmpDataError)) throw error;
-    if (error.code === "FMP_API_KEY_MISSING" || error.code === "FMP_AUTH_ERROR") throw error;
-    if (error.code === "FMP_PLAN_RESTRICTED") {
-      return {
-        rate: null,
-        availability: { status: "plan-restricted", message: FX_PLAN_RESTRICTED_MESSAGE },
-      };
-    }
+  }
+
+  try {
+    const ecb = await fetchEcbUsdKrwRate();
+    return {
+      rate: ecb.rate,
+      availability: {
+        status: "available",
+        message: ECB_FX_MESSAGE,
+        source: "European Central Bank",
+        asOf: ecb.asOf,
+      },
+    };
+  } catch {
     return {
       rate: null,
-      availability: { status: "unavailable", message: FX_UNAVAILABLE_MESSAGE },
+      availability: {
+        status: "unavailable",
+        message: FX_UNAVAILABLE_MESSAGE,
+        source: null,
+        asOf: null,
+      },
     };
   }
 }
@@ -259,7 +373,7 @@ export async function getStockMarketData(symbol: string): Promise<StockMarketDat
       CACHE_TTL.prices,
     ),
     fetchFmpArray("/stable/dividends", commonParams, CACHE_TTL.dividends),
-    getOptionalFxRate(),
+    getUsdKrwRate(),
   ]);
 
   const quote = quoteRows[0];
