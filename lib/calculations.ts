@@ -6,6 +6,11 @@ export type DividendEvent = {
   amount: number;
 };
 
+export type PriceHistoryPoint = {
+  date: string;
+  close: number;
+};
+
 export type EtfQuote = {
   symbol: string;
   name: string;
@@ -16,6 +21,12 @@ export type EtfQuote = {
   lastDividend: number;
   frequency: number;
   fxRate: number;
+  previousClose?: number | null;
+  dayChangePercent?: number | null;
+  fiftyTwoWeekLow?: number | null;
+  fiftyTwoWeekHigh?: number | null;
+  ytdPercent?: number | null;
+  priceHistory?: PriceHistoryPoint[];
   dividendCount: number;
   dividends: DividendEvent[];
   updatedAt: string;
@@ -41,6 +52,11 @@ export type Holding = {
 export function safeNumber(value: unknown, fallback = 0) {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+export function calculatePercentChange(current: number, reference: number) {
+  if (!Number.isFinite(current) || !Number.isFinite(reference) || reference <= 0) return null;
+  return ((current - reference) / reference) * 100;
 }
 
 export function calculateHolding(holding: Holding) {

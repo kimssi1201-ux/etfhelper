@@ -10,7 +10,7 @@
     "build": "vinext build",
     "start": "vinext start",
     "deploy": "npm run build && wrangler deploy",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "test": "npm run build && node --test tests/rendered-html.test.mjs tests/quote-api-contract.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },
