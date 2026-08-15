@@ -135,7 +135,7 @@ test("FMP and API response caches retain the intended TTL policy", async () => {
   assert.match(routeSource, /headers:\s*\{\s*["']Cache-Control["']:\s*["']no-store["']\s*\}/);
 });
 
-test("Cloudflare production mirrors the local runtime compatibility flags", async () => {
-  const wrangler = JSON.parse(await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
+test("Cloudflare production build contains each required runtime flag exactly once", async () => {
+  const wrangler = JSON.parse(await readFile(new URL("../dist/server/wrangler.json", import.meta.url), "utf8"));
   assert.deepEqual(wrangler.compatibility_flags, ["nodejs_compat", "global_fetch_strictly_public"]);
 });
