@@ -1,3 +1,5 @@
+import type { EtfQuote } from "@/lib/calculations";
+
 type ChartResult = {
   meta?: Record<string, unknown>;
   events?: { dividends?: Record<string, { amount?: number; date?: number }> };
@@ -56,20 +58,25 @@ export async function GET(request: Request) {
     const ttmDividend = dividends.filter((item) => item.date >= yearAgo).reduce((sum, item) => sum + item.amount, 0);
     const price = Number(meta.regularMarketPrice ?? meta.previousClose ?? 0);
     const fxRate = Number(fxChart.meta?.regularMarketPrice ?? fxChart.meta?.previousClose ?? 0);
+    const quote = {
+      symbol,
+      name: String(meta.longName ?? meta.shortName ?? symbol),
+      market: currency === "KRW" ? "KR" : "US",
+      currency,
+      price,
+      ttmDividend,
+      lastDividend: dividends[0]?.amount ?? 0,
+      frequency: inferFrequency(dividends.slice(0, 8).map((item) => item.date)),
+      fxRate: fxRate || 1350,
+      dividendCount: dividends.length,
+      dividends: dividends.slice(0, 12).map((item) => ({
+        date: new Date(item.date * 1000).toISOString().slice(0, 10),
+        amount: item.amount,
+      })),
+      updatedAt: new Date().toISOString(),
+    } satisfies EtfQuote;
     return Response.json(
-      {
-        symbol,
-        name: String(meta.longName ?? meta.shortName ?? symbol),
-        market: currency === "KRW" ? "KR" : "US",
-        currency,
-        price,
-        ttmDividend,
-        lastDividend: dividends[0]?.amount ?? 0,
-        frequency: inferFrequency(dividends.slice(0, 8).map((item) => item.date)),
-        fxRate: fxRate || 1350,
-        dividendCount: dividends.length,
-        updatedAt: new Date().toISOString(),
-      },
+      quote,
       { headers: { "Cache-Control": "public, max-age=300" } },
     );
   } catch {

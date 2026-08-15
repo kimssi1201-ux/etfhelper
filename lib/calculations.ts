@@ -1,6 +1,26 @@
 export type Market = "KR" | "US";
 export type Currency = "KRW" | "USD";
 
+export type DividendEvent = {
+  date: string;
+  amount: number;
+};
+
+export type EtfQuote = {
+  symbol: string;
+  name: string;
+  market: Market;
+  currency: Currency;
+  price: number;
+  ttmDividend: number;
+  lastDividend: number;
+  frequency: number;
+  fxRate: number;
+  dividendCount: number;
+  dividends: DividendEvent[];
+  updatedAt: string;
+};
+
 export type Holding = {
   id: string;
   symbol: string;
