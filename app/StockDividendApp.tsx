@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   Area,
   AreaChart,
@@ -137,6 +137,9 @@ function StockSelector({ current }: { current: StockConfig }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [tickerError, setTickerError] = useState("");
+  const [navigationMessage, setNavigationMessage] = useState("");
+  const selectorRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const selectableStocks = useMemo<readonly StockConfig[]>(
     () => stocks.some((stock) => stock.slug === current.slug) ? stocks : [current, ...stocks],
     [current],
@@ -156,59 +159,98 @@ function StockSelector({ current }: { current: StockConfig }) {
     items: matches.filter((stock) => stock.kind === kind),
   })).filter((group) => group.items.length > 0);
 
-  function closeSelector(target: HTMLElement) {
-    const details = target.closest("details");
-    details?.removeAttribute("open");
-    setOpen(false);
-  }
+  useEffect(() => {
+    if (!open) return;
+
+    const focusTimer = window.setTimeout(() => searchRef.current?.focus(), 0);
+    function handlePointerDown(event: PointerEvent) {
+      if (event.target instanceof Node && !selectorRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        selectorRef.current?.querySelector<HTMLButtonElement>("[aria-controls='stock-selector-panel']")?.focus();
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
 
   function openTicker(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const ticker = query.trim().toUpperCase();
+    setNavigationMessage("");
+    if (!ticker) {
+      setTickerError("이동할 영문 티커를 입력해 주세요.");
+      return;
+    }
     if (!/^[A-Z][A-Z0-9]{0,9}$/.test(ticker)) {
       setTickerError("영문 티커 1~10자를 입력해 주세요.");
       return;
     }
     const curated = stocks.find((stock) => stock.symbol.toUpperCase() === ticker);
-    window.location.assign(`/${curated?.slug ?? ticker.toLowerCase()}`);
+    setTickerError("");
+    setNavigationMessage(`${ticker} 페이지로 이동합니다.`);
+    try {
+      window.location.assign(`/${curated?.slug ?? ticker.toLowerCase()}`);
+    } catch {
+      setNavigationMessage("");
+      setTickerError("페이지를 열지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    }
   }
 
   return (
-    <details className="group relative w-[min(52vw,17rem)] sm:w-72" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-zinc-300 bg-white px-3 text-left text-sm font-bold text-zinc-900 hover:border-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 [&::-webkit-details-marker]:hidden">
+    <div ref={selectorRef} className="relative w-[min(52vw,17rem)] sm:w-72">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="stock-selector-panel"
+        onClick={() => {
+          setOpen((value) => !value);
+          setTickerError("");
+          setNavigationMessage("");
+        }}
+        className="flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-zinc-300 bg-white px-3 text-left text-sm font-bold text-zinc-900 hover:border-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+      >
         <span className="min-w-0">
-          <span className="block truncate">{current.symbol}</span>
-          <span className="hidden truncate text-[10px] font-medium text-zinc-500 sm:block">{current.nameKo}</span>
+          <span className="block text-[10px] font-extrabold text-emerald-700">종목 선택</span>
+          <span className="block truncate">{current.symbol}<span className="hidden font-medium text-zinc-500 sm:inline"> · {current.nameKo}</span></span>
         </span>
-        <span className="shrink-0 text-xs text-zinc-400 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
-        <span className="sr-only">종목 선택 메뉴 열기</span>
-      </summary>
+        <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-zinc-500" aria-hidden="true">
+          {selectableStocks.length}개
+          <span className={`text-xs transition-transform ${open ? "rotate-180" : ""}`}>▾</span>
+        </span>
+        <span className="sr-only">{open ? "종목 선택 메뉴 닫기" : "종목 선택 메뉴 열기"}</span>
+      </button>
 
-      {open && <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[min(92vw,24rem)] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl">
+      {open && <div id="stock-selector-panel" className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[min(92vw,24rem)] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl" role="dialog" aria-label="종목 선택">
         <div className="border-b border-zinc-200 p-3">
           <label htmlFor="stock-selector-search" className="mb-2 block text-xs font-extrabold text-zinc-700">종목명 검색 또는 티커 바로 열기</label>
           <form className="flex gap-2" onSubmit={openTicker}>
             <input
+              ref={searchRef}
               id="stock-selector-search"
               type="search"
               value={query}
-              onChange={(event) => { setQuery(event.target.value); setTickerError(""); }}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  closeSelector(event.currentTarget);
-                  event.currentTarget.closest("details")?.querySelector<HTMLElement>("summary")?.focus();
-                }
-              }}
+              onChange={(event) => { setQuery(event.target.value); setTickerError(""); setNavigationMessage(""); }}
               aria-describedby={tickerError ? "stock-ticker-error" : undefined}
               placeholder="예: AAPL 또는 애플"
               autoComplete="off"
               spellCheck={false}
               className="h-11 min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 text-base text-zinc-950 placeholder:text-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
             />
-            <button type="submit" disabled={!query.trim()} className="min-h-11 shrink-0 rounded-lg bg-zinc-950 px-3 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-40">티커 열기</button>
+            <button type="submit" className="min-h-11 shrink-0 rounded-lg bg-zinc-950 px-3 text-xs font-extrabold text-white hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">바로 이동</button>
           </form>
           {tickerError && <p id="stock-ticker-error" className="mt-2 text-xs leading-5 text-rose-600" role="alert">{tickerError}</p>}
-          <p className="mt-2 text-[11px] text-zinc-500" aria-live="polite">{matches.length}개 종목</p>
+          <p className="mt-2 text-[11px] text-zinc-500" aria-live="polite">{navigationMessage || `${matches.length}개 종목 검색됨`}</p>
         </div>
 
         <nav className="max-h-80 overflow-y-auto overscroll-contain p-2" aria-label="지원 종목 검색 결과">
@@ -222,8 +264,8 @@ function StockSelector({ current }: { current: StockConfig }) {
                     <Link
                       key={stock.slug}
                       href={`/${stock.slug}`}
+                      prefetch={false}
                       aria-current={active ? "page" : undefined}
-                      onClick={(event) => closeSelector(event.currentTarget)}
                       className={`flex min-h-12 items-center justify-between gap-3 rounded-lg px-3 py-2 no-underline ${active ? "bg-zinc-950 text-white" : "text-zinc-900 hover:bg-zinc-100"}`}
                     >
                       <span className="min-w-0">
@@ -237,10 +279,10 @@ function StockSelector({ current }: { current: StockConfig }) {
               </div>
             </section>
           ))}
-          {matches.length === 0 && <p className="px-4 py-10 text-center text-sm text-zinc-500">일치하는 지원 종목이 없습니다.</p>}
+          {matches.length === 0 && <p className="px-4 py-10 text-center text-sm leading-6 text-zinc-500">일치하는 등록 종목이 없습니다.<br />영문 티커를 입력한 뒤 <b className="text-zinc-800">바로 이동</b>을 눌러 주세요.</p>}
         </nav>
       </div>}
-    </details>
+    </div>
   );
 }
 
@@ -469,7 +511,7 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
             <span className="grid h-9 w-9 place-items-center rounded-lg bg-zinc-950 text-sm font-black text-white">DL</span>
             <span><b className="block text-sm font-black tracking-[-0.02em]">배당렌즈</b><small className="block text-[10px] font-medium text-zinc-500">Dividend Lens</small></span>
           </Link>
-          <StockSelector current={config} />
+          <StockSelector key={config.slug} current={config} />
         </div>
       </header>
 

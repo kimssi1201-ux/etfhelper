@@ -113,6 +113,16 @@ test("static params, SEO, and scalable selector all derive from shared stock con
   assert.match(componentSource, /groups\.map\(/);
   assert.match(componentSource, /group\.items\.map\(/);
   assert.match(componentSource, /href=\{`\/\$\{stock\.slug\}`\}/);
+  assert.match(componentSource, /aria-expanded=\{open\}/);
+  assert.match(componentSource, /aria-controls=["']stock-selector-panel["']/);
+  assert.match(componentSource, /id=["']stock-selector-panel["']/);
+  assert.match(componentSource, /window\.location\.assign\(/);
+  assert.match(componentSource, /영문 티커 1~10자를 입력해 주세요\./);
+  assert.match(componentSource, /페이지를 열지 못했습니다\. 잠시 후 다시 시도해 주세요\./);
+  const selectorLink = componentSource.match(/<Link\s+key=\{stock\.slug\}[\s\S]*?<\/Link>/)?.[0];
+  assert.ok(selectorLink, "the selector must render a link for each configured stock");
+  assert.doesNotMatch(selectorLink, /onClick=/, "closing the selector on click must not cancel navigation");
+  assert.match(componentSource, /<StockSelector\s+key=\{config\.slug\}\s+current=\{config\}\s*\/>/);
 });
 
 test("representative expanded ETF and stock routes server-render config-derived SEO", async (t) => {
