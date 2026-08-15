@@ -266,6 +266,11 @@ function StockSelector({ current }: { current: StockConfig }) {
                       href={`/${stock.slug}`}
                       prefetch={false}
                       aria-current={active ? "page" : undefined}
+                      onClick={(event) => {
+                        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                        event.preventDefault();
+                        window.location.assign(`/${stock.slug}`);
+                      }}
                       className={`flex min-h-12 items-center justify-between gap-3 rounded-lg px-3 py-2 no-underline ${active ? "bg-zinc-950 text-white" : "text-zinc-900 hover:bg-zinc-100"}`}
                     >
                       <span className="min-w-0">

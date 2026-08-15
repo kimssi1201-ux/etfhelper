@@ -121,7 +121,9 @@ test("static params, SEO, and scalable selector all derive from shared stock con
   assert.match(componentSource, /페이지를 열지 못했습니다\. 잠시 후 다시 시도해 주세요\./);
   const selectorLink = componentSource.match(/<Link\s+key=\{stock\.slug\}[\s\S]*?<\/Link>/)?.[0];
   assert.ok(selectorLink, "the selector must render a link for each configured stock");
-  assert.doesNotMatch(selectorLink, /onClick=/, "closing the selector on click must not cancel navigation");
+  assert.match(selectorLink, /event\.preventDefault\(\)/, "the selector must bypass unreliable client navigation");
+  assert.match(selectorLink, /window\.location\.assign\(`\/\$\{stock\.slug\}`\)/, "stock links must guarantee a full navigation");
+  assert.doesNotMatch(selectorLink, /setOpen\(false\)|removeAttribute\(["']open["']\)/, "the selector must not unmount before navigation starts");
   assert.match(componentSource, /<StockSelector\s+key=\{config\.slug\}\s+current=\{config\}\s*\/>/);
 });
 
