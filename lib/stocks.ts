@@ -494,30 +494,25 @@ function createStockConfig(seed: StockSeed): StockConfig {
   };
 }
 
-export const stocks: readonly StockConfig[] = [
+const configuredStocks: readonly StockConfig[] = [
   ...featuredStocks,
   ...additionalStockSeeds.map(createStockConfig),
 ];
+
+const verifiedSymbols = ["XOM", "CVX", "AAPL", "MSFT", "KO"] as const;
+
+export const stocks: readonly StockConfig[] = verifiedSymbols
+  .map((symbol) => configuredStocks.find((stock) => stock.symbol === symbol))
+  .filter((stock): stock is StockConfig => stock !== undefined);
 
 export const stockSlugs = stocks.map((stock) => stock.slug);
 
 export function getStockBySlug(slug: string) {
   const normalized = slug.trim().toLowerCase();
-  const configured = stocks.find((stock) => stock.slug === normalized);
-  if (configured) return configured;
-
-  const symbol = normalized.toUpperCase();
-  return /^[A-Z][A-Z0-9]{0,9}$/.test(symbol)
-    ? createStockConfig([symbol, symbol, symbol, "security", "variable"])
-    : undefined;
+  return stocks.find((stock) => stock.slug === normalized);
 }
 
 export function getStockBySymbol(symbol: string) {
   const normalized = symbol.trim().toUpperCase();
-  const configured = stocks.find((stock) => stock.symbol === normalized);
-  if (configured) return configured;
-
-  return /^[A-Z][A-Z0-9]{0,9}$/.test(normalized)
-    ? createStockConfig([normalized, normalized, normalized, "security", "variable"])
-    : undefined;
+  return stocks.find((stock) => stock.symbol === normalized);
 }

@@ -8,7 +8,7 @@ type StockPageProps = {
   params: Promise<{ symbol: string }>;
 };
 
-export const dynamicParams = true;
+export const dynamicParams = false;
 
 export function generateStaticParams() {
   return stockSlugs.map((symbol) => ({ symbol }));

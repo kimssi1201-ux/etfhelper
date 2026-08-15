@@ -4,22 +4,12 @@ import test from "node:test";
 import ts from "typescript";
 
 const ORIGIN = "https://dividend.example";
-const coreStocks = [
+const verifiedStocks = [
   { slug: "xom", symbol: "XOM", kind: "stock" },
-  { slug: "jepi", symbol: "JEPI", kind: "etf" },
-  { slug: "jepq", symbol: "JEPQ", kind: "etf" },
-  { slug: "schd", symbol: "SCHD", kind: "etf" },
-  { slug: "qqqi", symbol: "QQQI", kind: "etf" },
-];
-const coreSymbols = new Set(coreStocks.map((stock) => stock.symbol));
-const referenceSymbols = [
-  "JEPI", "QQQI", "QYLD", "DIVO", "JEPQ", "SPHD", "RYLD", "SDIV", "XYLD", "NUSI",
-  "XYLG", "QYLG", "DIV", "SRET", "PFF", "PFFD", "BND", "AGG", "TLT", "VGIT", "SGOV",
-  "SPYI", "IWMI", "IYRI", "GPIQ", "GPIX", "BITO", "TLTW", "ULTY", "TSLY", "NVDY",
-  "CONY", "MSTY", "AMDY", "APLY", "GOOY", "AMZY", "FEPI", "YMAX", "LFGY", "PLTY",
-  "QDTE", "CHPY", "PLTW", "SCHD", "SPYD", "VYM", "DGRO", "HDV", "ITA", "PPA", "DFEN",
-  "FENY", "XLE", "VDE", "FDVV", "QQQ", "VOO", "QQQM", "SPY", "O", "ABBV", "MO", "T",
-  "VZ", "KO", "PM", "JNJ", "PG", "PEP", "XOM", "NVDA", "AAPL", "MSFT", "AVGO",
+  { slug: "cvx", symbol: "CVX", kind: "stock" },
+  { slug: "aapl", symbol: "AAPL", kind: "stock" },
+  { slug: "msft", symbol: "MSFT", kind: "stock" },
+  { slug: "ko", symbol: "KO", kind: "stock" },
 ];
 let stocksModulePromise;
 let workerPromise;
@@ -36,7 +26,7 @@ async function loadStocksModule() {
   return stocksModulePromise;
 }
 
-async function render(path) {
+async function render(path, headers = {}) {
   if (!workerPromise) {
     const workerUrl = new URL("../dist/server/index.js", import.meta.url);
     workerUrl.searchParams.set("universe-test", `${process.pid}-${Date.now()}`);
@@ -48,39 +38,30 @@ async function render(path) {
       accept: "text/html",
       "x-forwarded-host": "dividend.example",
       "x-forwarded-proto": "https",
+      ...headers,
     },
   }), {
     ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) },
   }, { waitUntil() {}, passThroughOnException() {} });
 }
 
-function displayName(stock) {
-  return stock.nameKo.toUpperCase() === stock.symbol
-    ? stock.symbol
-    : `${stock.nameKo}(${stock.symbol})`;
-}
-
-test("supported universe contains at least 50 unique routes and retains the original five", async () => {
+test("supported universe contains exactly the five symbols verified against the active FMP plan", async () => {
   const { stocks, stockSlugs, getStockBySlug, getStockBySymbol } = await loadStocksModule();
   const slugs = stocks.map((stock) => stock.slug);
   const symbols = stocks.map((stock) => stock.symbol);
 
-  assert.ok(stocks.length >= 50, `expected at least 50 configured stocks, received ${stocks.length}`);
+  assert.deepEqual([...symbols].sort(), verifiedStocks.map((stock) => stock.symbol).sort());
+  assert.deepEqual([...slugs].sort(), verifiedStocks.map((stock) => stock.slug).sort());
   assert.equal(new Set(slugs.map((slug) => slug.toLowerCase())).size, stocks.length, "configured slugs must be unique");
   assert.equal(new Set(symbols.map((symbol) => symbol.toUpperCase())).size, stocks.length, "configured symbols must be unique");
   assert.deepEqual(stockSlugs, slugs, "every configured stock must receive a generated route");
 
-  for (const expected of coreStocks) {
+  for (const expected of verifiedStocks) {
     const configured = stocks.find((stock) => stock.symbol === expected.symbol);
-    assert.ok(configured, `${expected.symbol} must remain supported`);
+    assert.ok(configured, `${expected.symbol} must remain in the verified universe`);
     assert.equal(configured.slug, expected.slug);
     assert.equal(configured.kind, expected.kind);
   }
-
-  for (const symbol of referenceSymbols) {
-    assert.ok(symbols.includes(symbol), `reference ticker ${symbol} must be configured`);
-  }
-  assert.equal(getStockBySymbol("FEPI")?.payoutFrequency, "weekly");
 
   for (const stock of stocks) {
     assert.match(stock.slug, /^[a-z0-9][a-z0-9.-]*$/);
@@ -91,6 +72,11 @@ test("supported universe contains at least 50 unique routes and retains the orig
     assert.equal(getStockBySlug(stock.slug)?.symbol, stock.symbol);
     assert.equal(getStockBySymbol(stock.symbol)?.slug, stock.slug);
   }
+
+  for (const unsupportedSymbol of ["MCD", "TEST123"]) {
+    assert.equal(getStockBySlug(unsupportedSymbol.toLowerCase()), undefined);
+    assert.equal(getStockBySymbol(unsupportedSymbol), undefined);
+  }
 });
 
 test("static params, SEO, and scalable selector all derive from shared stock config", async () => {
@@ -100,7 +86,7 @@ test("static params, SEO, and scalable selector all derive from shared stock con
   ]);
 
   assert.match(pageSource, /import\s*\{[^}]*getStockBySlug[^}]*stockSlugs[^}]*\}\s*from\s*["']@\/lib\/stocks["']/s);
-  assert.match(pageSource, /export const dynamicParams\s*=\s*true/);
+  assert.match(pageSource, /export const dynamicParams\s*=\s*false/);
   assert.match(pageSource, /return\s+stockSlugs\.map\(\s*\(symbol\)\s*=>\s*\(\{\s*symbol\s*\}\)\s*\)/);
   assert.ok((pageSource.match(/const config\s*=\s*getStockBySlug\(symbol\)/g) ?? []).length >= 2);
   assert.match(pageSource, /new URL\(`\/\$\{config\.slug\}`\s*,\s*origin\)/);
@@ -117,8 +103,8 @@ test("static params, SEO, and scalable selector all derive from shared stock con
   assert.match(componentSource, /aria-controls=["']stock-selector-panel["']/);
   assert.match(componentSource, /id=["']stock-selector-panel["']/);
   assert.match(componentSource, /window\.location\.assign\(/);
-  assert.match(componentSource, /영문 티커 1~10자를 입력해 주세요\./);
-  assert.match(componentSource, /페이지를 열지 못했습니다\. 잠시 후 다시 시도해 주세요\./);
+  assert.doesNotMatch(componentSource, /curated\?\.slug\s*\?\?|ticker\.toLowerCase\(\)/, "unlisted ticker text must never become a route");
+  assert.doesNotMatch(componentSource, /openTicker|티커 바로 열기|바로 이동/, "the selector must only filter and link the verified universe");
   const selectorLink = componentSource.match(/<Link\s+key=\{stock\.slug\}[\s\S]*?<\/Link>/)?.[0];
   assert.ok(selectorLink, "the selector must render a link for each configured stock");
   assert.match(selectorLink, /event\.preventDefault\(\)/, "the selector must bypass unreliable client navigation");
@@ -127,64 +113,35 @@ test("static params, SEO, and scalable selector all derive from shared stock con
   assert.match(componentSource, /<StockSelector\s+key=\{config\.slug\}\s+current=\{config\}\s*\/>/);
 });
 
-test("representative expanded ETF and stock routes server-render config-derived SEO", async (t) => {
-  const { stocks } = await loadStocksModule();
-  const samples = [
-    stocks.find((stock) => stock.kind === "etf" && !coreSymbols.has(stock.symbol)),
-    stocks.find((stock) => stock.kind === "stock" && !coreSymbols.has(stock.symbol)),
-  ];
-  assert.ok(samples.every(Boolean), "expanded config must contain both an ETF and an individual stock");
+test("unverified page and API routes return 404 without contacting an upstream provider", async () => {
+  const originalFetch = globalThis.fetch;
+  let upstreamCalls = 0;
+  globalThis.fetch = async () => {
+    upstreamCalls += 1;
+    throw new Error("unsupported routes must be rejected before an upstream request");
+  };
 
-  for (const stock of samples) {
-    await t.test(`${stock.kind}: ${stock.symbol}`, async () => {
-      const response = await render(`/${stock.slug}`);
-      assert.equal(response.status, 200);
-      assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
+  try {
+    for (const symbol of ["MCD", "TEST123"]) {
+      const pageResponse = await render(`/${symbol.toLowerCase()}`);
+      const pageHtml = await pageResponse.text();
+      assert.equal(pageResponse.status, 404);
+      assert.doesNotMatch(pageHtml, new RegExp(`${symbol} 배당금 계산기`));
+      assert.doesNotMatch(pageHtml, /application\/ld\+json/i);
 
-      const rawHtml = await response.text();
-      const html = rawHtml.replace(/<!--[\s\S]*?-->/g, "");
-      const name = displayName(stock);
-      const canonicalUrl = `${ORIGIN}/${stock.slug}`;
-      const title = `${name} 배당금 계산기 | 배당렌즈`;
-      const description = `${name}의 현재가와 최근 12개월 실제 주당 배당금으로 월평균·분기·연간 예상 배당금과 목표 투자금을 계산하세요.`;
-
-      assert.ok(html.includes(`<title>${title}</title>`));
-      assert.ok(html.includes(`<meta name="description" content="${description}">`));
-      assert.ok(html.includes(`<link rel="canonical" href="${canonicalUrl}">`));
-      assert.ok(html.includes(`>${stock.symbol} 배당금 계산기</h1>`));
-      assert.ok(html.includes(stock.headline));
-      assert.ok(html.includes("종목 선택 메뉴 열기"));
-
-      const jsonLdText = rawHtml.match(/<script\s+type=["']application\/ld\+json["']>([\s\S]*?)<\/script>/i)?.[1];
-      assert.ok(jsonLdText, "JSON-LD must be server-rendered");
-      const jsonLd = JSON.parse(jsonLdText);
-      const application = jsonLd["@graph"].find((item) => item["@type"] === "WebApplication");
-      const faq = jsonLd["@graph"].find((item) => item["@type"] === "FAQPage");
-      assert.equal(application.name, `${name} 배당금 계산기`);
-      assert.equal(application.url, canonicalUrl);
-      assert.equal(application.description, stock.description);
-      assert.equal(faq.mainEntity.length, stock.faqs.length);
-    });
+      const apiResponse = await render(`/api/stocks/${symbol}`, { accept: "application/json" });
+      assert.equal(apiResponse.status, 404);
+      assert.equal(apiResponse.headers.get("cache-control"), "no-store");
+      assert.deepEqual(await apiResponse.json(), {
+        error: {
+          code: "UNSUPPORTED_SYMBOL",
+          message: "지원하지 않는 종목입니다.",
+        },
+      });
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
   }
-});
 
-test("a syntactically valid unlisted ticker receives a dynamic calculator and SEO page", async () => {
-  const symbol = "TEST123";
-  const slug = symbol.toLowerCase();
-  const response = await render(`/${slug}`);
-  assert.equal(response.status, 200);
-
-  const rawHtml = await response.text();
-  const html = rawHtml.replace(/<!--[\s\S]*?-->/g, "");
-  assert.ok(html.includes(`<title>${symbol} 배당금 계산기 | 배당렌즈</title>`));
-  assert.ok(html.includes(`<link rel="canonical" href="${ORIGIN}/${slug}">`));
-  assert.ok(html.includes(`>${symbol} 배당금 계산기</h1>`));
-  assert.ok(html.includes(`${symbol}의 예상 배당 현금흐름을 간단히 계산해 보세요.`));
-
-  const jsonLdText = rawHtml.match(/<script\s+type=["']application\/ld\+json["']>([\s\S]*?)<\/script>/i)?.[1];
-  assert.ok(jsonLdText);
-  const jsonLd = JSON.parse(jsonLdText);
-  const application = jsonLd["@graph"].find((item) => item["@type"] === "WebApplication");
-  assert.equal(application.name, `${symbol} 배당금 계산기`);
-  assert.equal(application.url, `${ORIGIN}/${slug}`);
+  assert.equal(upstreamCalls, 0);
 });

@@ -1,10 +1,18 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
+import ts from "typescript";
 
 const ORIGIN = "https://dividend.example";
 const workerUrl = new URL("../dist/server/index.js", import.meta.url);
 workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
 const workerPromise = import(workerUrl.href).then(({ default: worker }) => worker);
+const stocksPromise = readFile(new URL("../lib/stocks.ts", import.meta.url), "utf8").then((source) => {
+  const javascript = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  return import(`data:text/javascript;base64,${Buffer.from(javascript).toString("base64")}`);
+});
 
 async function render(path, headers = {}) {
   const worker = await workerPromise;
@@ -34,43 +42,11 @@ function tagHasAttributes(html, tagName, attributes) {
   )));
 }
 
-const pages = [
-  {
-    slug: "xom",
-    symbol: "XOM",
-    displayName: "엑슨모빌(XOM)",
-    headline: "글로벌 에너지 기업의 분기 배당을 계산해 보세요.",
-    badge: "미국 주식 · 분기 배당",
-  },
-  {
-    slug: "jepi",
-    symbol: "JEPI",
-    displayName: "JEPI",
-    headline: "월 분배형 ETF의 예상 현금흐름을 확인하세요.",
-    badge: "미국 ETF · 월 분배",
-  },
-  {
-    slug: "jepq",
-    symbol: "JEPQ",
-    displayName: "JEPQ",
-    headline: "나스닥 중심 월 분배 ETF를 숫자로 살펴보세요.",
-    badge: "미국 ETF · 월 분배",
-  },
-  {
-    slug: "schd",
-    symbol: "SCHD",
-    displayName: "SCHD",
-    headline: "미국 배당성장 ETF의 분기 배당을 계산하세요.",
-    badge: "미국 ETF · 분기 배당",
-  },
-  {
-    slug: "qqqi",
-    symbol: "QQQI",
-    displayName: "QQQI",
-    headline: "나스닥 고인컴 ETF의 월 분배 흐름을 확인하세요.",
-    badge: "미국 ETF · 월 분배",
-  },
-];
+function displayName(stock) {
+  return stock.nameKo.toUpperCase() === stock.symbol
+    ? stock.symbol
+    : `${stock.nameKo}(${stock.symbol})`;
+}
 
 test("root redirects to the default XOM calculator", async () => {
   const response = await render("/");
@@ -78,18 +54,21 @@ test("root redirects to the default XOM calculator", async () => {
   assert.equal(new URL(response.headers.get("location"), ORIGIN).pathname, "/xom");
 });
 
-test("all five stock pages server-render content, SEO, structured data, and disclaimer", async (t) => {
-  for (const page of pages) {
-    await t.test(page.symbol, async () => {
-      const response = await render(`/${page.slug}`);
+test("every stock in the shared verified universe server-renders content, SEO, structured data, and disclaimer", async (t) => {
+  const { stocks } = await stocksPromise;
+
+  for (const stock of stocks) {
+    await t.test(stock.symbol, async () => {
+      const response = await render(`/${stock.slug}`);
       assert.equal(response.status, 200);
       assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
       const rawHtml = await response.text();
       const html = rawHtml.replace(/<!--[\s\S]*?-->/g, "");
-      const canonicalUrl = `${ORIGIN}/${page.slug}`;
-      const title = `${page.displayName} 배당금 계산기 | 배당렌즈`;
-      const description = `${page.displayName}의 현재가와 최근 12개월 실제 주당 배당금으로 월평균·분기·연간 예상 배당금과 목표 투자금을 계산하세요.`;
+      const canonicalUrl = `${ORIGIN}/${stock.slug}`;
+      const name = displayName(stock);
+      const title = `${name} 배당금 계산기 | 배당렌즈`;
+      const description = `${name}의 현재가와 최근 12개월 실제 주당 배당금으로 월평균·분기·연간 예상 배당금과 목표 투자금을 계산하세요.`;
 
       assert.match(html, /<html\s+lang=["']ko["']/i);
       assert.ok(html.includes(`<title>${title}</title>`));
@@ -101,9 +80,8 @@ test("all five stock pages server-render content, SEO, structured data, and disc
       assert.ok(tagHasAttributes(html, "meta", { property: "og:locale", content: "ko_KR" }));
       assert.ok(tagHasAttributes(html, "meta", { name: "twitter:card", content: "summary_large_image" }));
 
-      assert.ok(html.includes(`>${page.symbol} 배당금 계산기</h1>`));
-      assert.ok(html.includes(page.headline));
-      assert.ok(html.includes(page.badge));
+      assert.ok(html.includes(`>${stock.symbol} 배당금 계산기</h1>`));
+      assert.ok(html.includes(stock.headline));
       assert.ok(html.includes("FMP Stable API의 실제 시세·배당 이력을 사용합니다."));
       assert.ok(html.includes("목표 월 배당금"));
       assert.ok(html.includes("미국 원천징수 15%"));
@@ -116,10 +94,11 @@ test("all five stock pages server-render content, SEO, structured data, and disc
       const jsonLd = JSON.parse(jsonLdText);
       const application = jsonLd["@graph"].find((item) => item["@type"] === "WebApplication");
       const faq = jsonLd["@graph"].find((item) => item["@type"] === "FAQPage");
-      assert.equal(application.name, `${page.displayName} 배당금 계산기`);
+      assert.equal(application.name, `${name} 배당금 계산기`);
       assert.equal(application.url, canonicalUrl);
+      assert.equal(application.description, stock.description);
       assert.equal(application.applicationCategory, "FinanceApplication");
-      assert.equal(faq.mainEntity.length, 3);
+      assert.equal(faq.mainEntity.length, stock.faqs.length);
       assert.ok(faq.mainEntity.every((item) => item["@type"] === "Question" && item.acceptedAnswer?.["@type"] === "Answer"));
     });
   }

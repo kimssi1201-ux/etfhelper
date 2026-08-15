@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -136,14 +136,9 @@ function SkeletonPanel() {
 function StockSelector({ current }: { current: StockConfig }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
-  const [tickerError, setTickerError] = useState("");
-  const [navigationMessage, setNavigationMessage] = useState("");
   const selectorRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const selectableStocks = useMemo<readonly StockConfig[]>(
-    () => stocks.some((stock) => stock.slug === current.slug) ? stocks : [current, ...stocks],
-    [current],
-  );
+  const selectableStocks = stocks;
   const normalizedQuery = query.trim().toLocaleLowerCase("ko-KR");
   const matches = useMemo(() => {
     if (!normalizedQuery) return selectableStocks;
@@ -184,29 +179,6 @@ function StockSelector({ current }: { current: StockConfig }) {
     };
   }, [open]);
 
-  function openTicker(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const ticker = query.trim().toUpperCase();
-    setNavigationMessage("");
-    if (!ticker) {
-      setTickerError("이동할 영문 티커를 입력해 주세요.");
-      return;
-    }
-    if (!/^[A-Z][A-Z0-9]{0,9}$/.test(ticker)) {
-      setTickerError("영문 티커 1~10자를 입력해 주세요.");
-      return;
-    }
-    const curated = stocks.find((stock) => stock.symbol.toUpperCase() === ticker);
-    setTickerError("");
-    setNavigationMessage(`${ticker} 페이지로 이동합니다.`);
-    try {
-      window.location.assign(`/${curated?.slug ?? ticker.toLowerCase()}`);
-    } catch {
-      setNavigationMessage("");
-      setTickerError("페이지를 열지 못했습니다. 잠시 후 다시 시도해 주세요.");
-    }
-  }
-
   return (
     <div ref={selectorRef} className="relative w-[min(52vw,17rem)] sm:w-72">
       <button
@@ -215,8 +187,6 @@ function StockSelector({ current }: { current: StockConfig }) {
         aria-controls="stock-selector-panel"
         onClick={() => {
           setOpen((value) => !value);
-          setTickerError("");
-          setNavigationMessage("");
         }}
         className="flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-zinc-300 bg-white px-3 text-left text-sm font-bold text-zinc-900 hover:border-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
       >
@@ -233,24 +203,19 @@ function StockSelector({ current }: { current: StockConfig }) {
 
       {open && <div id="stock-selector-panel" className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[min(92vw,24rem)] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl" role="dialog" aria-label="종목 선택">
         <div className="border-b border-zinc-200 p-3">
-          <label htmlFor="stock-selector-search" className="mb-2 block text-xs font-extrabold text-zinc-700">종목명 검색 또는 티커 바로 열기</label>
-          <form className="flex gap-2" onSubmit={openTicker}>
-            <input
-              ref={searchRef}
-              id="stock-selector-search"
-              type="search"
-              value={query}
-              onChange={(event) => { setQuery(event.target.value); setTickerError(""); setNavigationMessage(""); }}
-              aria-describedby={tickerError ? "stock-ticker-error" : undefined}
-              placeholder="예: AAPL 또는 애플"
-              autoComplete="off"
-              spellCheck={false}
-              className="h-11 min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 text-base text-zinc-950 placeholder:text-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-            />
-            <button type="submit" className="min-h-11 shrink-0 rounded-lg bg-zinc-950 px-3 text-xs font-extrabold text-white hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">바로 이동</button>
-          </form>
-          {tickerError && <p id="stock-ticker-error" className="mt-2 text-xs leading-5 text-rose-600" role="alert">{tickerError}</p>}
-          <p className="mt-2 text-[11px] text-zinc-500" aria-live="polite">{navigationMessage || `${matches.length}개 종목 검색됨`}</p>
+          <label htmlFor="stock-selector-search" className="mb-2 block text-xs font-extrabold text-zinc-700">검증된 종목 5개 검색</label>
+          <input
+            ref={searchRef}
+            id="stock-selector-search"
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="예: AAPL 또는 애플"
+            autoComplete="off"
+            spellCheck={false}
+            className="h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-base text-zinc-950 placeholder:text-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+          />
+          <p className="mt-2 text-[11px] text-zinc-500" aria-live="polite">검증된 5개 중 {matches.length}개 종목</p>
         </div>
 
         <nav className="max-h-80 overflow-y-auto overscroll-contain p-2" aria-label="지원 종목 검색 결과">
@@ -284,7 +249,7 @@ function StockSelector({ current }: { current: StockConfig }) {
               </div>
             </section>
           ))}
-          {matches.length === 0 && <p className="px-4 py-10 text-center text-sm leading-6 text-zinc-500">일치하는 등록 종목이 없습니다.<br />영문 티커를 입력한 뒤 <b className="text-zinc-800">바로 이동</b>을 눌러 주세요.</p>}
+          {matches.length === 0 && <p className="px-4 py-10 text-center text-sm leading-6 text-zinc-500">일치하는 검증 종목이 없습니다.<br />XOM, CVX, AAPL, MSFT, KO 중에서 검색해 주세요.</p>}
         </nav>
       </div>}
     </div>
