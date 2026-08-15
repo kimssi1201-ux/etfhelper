@@ -13,20 +13,58 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export async function generateMetadata(): Promise<Metadata> {
+async function getRequestOrigin() {
   const incoming = await headers();
-  const host = incoming.get("x-forwarded-host") ?? incoming.get("host") ?? "localhost:3000";
-  const protocol = incoming.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  const origin = new URL(`${protocol}://${host}`);
-  const socialImage = new URL("/og.png", origin).toString();
-  const title = "ETF FLOW | ETF 배당금 계산기";
-  const description = "국내·미국 ETF의 시세와 분배 내역을 불러와 예상 배당금, 가격 추이, 목표 투자금을 한눈에 계산합니다.";
+  const forwardedHost = incoming.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const host = forwardedHost || incoming.get("host") || "localhost:3000";
+  const forwardedProtocol = incoming.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const protocol = forwardedProtocol === "http" || forwardedProtocol === "https"
+    ? forwardedProtocol
+    : host.startsWith("localhost")
+      ? "http"
+      : "https";
+
+  try {
+    return new URL(`${protocol}://${host}`);
+  } catch {
+    return new URL("http://localhost:3000");
+  }
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const origin = await getRequestOrigin();
+  const title = "배당렌즈 | 미국 주식·ETF 배당금 계산기";
+  const description =
+    "실제 최근 12개월 배당 이력과 현재가를 바탕으로 미국 주식·ETF의 월평균·분기·연간 배당금을 계산해 보세요.";
+  const socialImage = new URL("/og-dividend-lens.png", origin).toString();
+
   return {
     metadataBase: origin,
-    title,
+    title: {
+      default: title,
+      template: "%s | 배당렌즈",
+    },
     description,
-    openGraph: { title, description, type: "website", images: [{ url: socialImage, width: 1731, height: 909, alt: "ETF FLOW ETF 배당금 계산기와 가격·월별 배당 차트" }] },
-    twitter: { card: "summary_large_image", title, description, images: [socialImage] },
+    applicationName: "배당렌즈",
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      locale: "ko_KR",
+      siteName: "배당렌즈",
+      images: [{
+        url: socialImage,
+        width: 1731,
+        height: 909,
+        alt: "배당렌즈 미국 주식·ETF 배당금 계산기",
+      }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [socialImage],
+    },
   };
 }
 
@@ -37,9 +75,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {children}
       </body>
     </html>

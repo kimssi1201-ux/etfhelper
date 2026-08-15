@@ -10,14 +10,15 @@
     "build": "vinext build",
     "start": "vinext start",
     "deploy": "npm run build && wrangler deploy",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs tests/quote-api-contract.test.mjs",
+    "test": "npm run build && node --test",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.6",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
