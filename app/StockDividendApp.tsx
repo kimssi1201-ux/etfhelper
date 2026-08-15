@@ -374,6 +374,8 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
   const [priceRange, setPriceRange] = useState<PriceRange>("1Y");
   const [dividendRange, setDividendRange] = useState<DividendRange>("2Y");
   const [targetMonthly, setTargetMonthly] = useState(2_000_000);
+  const [showFxGuidance, setShowFxGuidance] = useState(false);
+  const manualFxInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -470,20 +472,32 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
   function applyInvestment(value: number) {
     const safe = Math.max(value, 0);
     setInvestmentKrw(safe);
-    if (priceUsd > 0 && fxRate !== null && fxRate > 0) {
-      setShares(calculateAffordableShares(safe, fxRate, priceUsd));
-      setPurchasePrice(priceUsd);
+    if (priceUsd <= 0) return;
+    if (fxRate === null || fxRate <= 0) {
+      focusManualFxRate();
+      return;
     }
+    setShares(calculateAffordableShares(safe, fxRate, priceUsd));
+    setPurchasePrice(priceUsd);
+  }
+
+  function focusManualFxRate() {
+    setShowFxGuidance(true);
+    manualFxInputRef.current?.focus({ preventScroll: true });
+    manualFxInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   function updateManualFxRate(value: number) {
     const nextRate = Number.isFinite(value) && value > 0 ? value : 0;
     setManual((current) => ({ ...current, fxRate: nextRate }));
     if (nextRate <= 0) {
+      setShowFxGuidance(true);
       setCurrency("USD");
       return;
     }
-    if (shares <= 0 && priceUsd > 0 && investmentKrw > 0) {
+    setShowFxGuidance(false);
+    setCurrency("KRW");
+    if (priceUsd > 0 && investmentKrw > 0) {
       setShares(calculateAffordableShares(investmentKrw, nextRate, priceUsd));
       setPurchasePrice(priceUsd);
     }
@@ -536,8 +550,8 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
             </div>
             <div className="flex items-center rounded-full border border-zinc-200 bg-zinc-100 p-1" role="group" aria-label="표시 통화" aria-describedby={fxUnavailable ? "fx-plan-notice" : undefined}>
               {(["USD", "KRW"] as const).map((item) => {
-                const disabled = item === "KRW" && !hasFxRate;
-                return <button key={item} type="button" disabled={disabled} aria-pressed={currency === item} onClick={() => setCurrency(item)} title={disabled ? "USD/KRW 환율을 직접 입력하면 사용할 수 있습니다." : undefined} className={`min-h-9 min-w-14 rounded-full px-3 text-xs font-black ${currency === item ? "bg-zinc-950 text-white shadow-sm" : "text-zinc-500"} disabled:cursor-not-allowed disabled:text-zinc-300`}>{item}</button>;
+                const needsFxRate = item === "KRW" && !hasFxRate;
+                return <button key={item} type="button" aria-pressed={currency === item} onClick={() => needsFxRate ? focusManualFxRate() : setCurrency(item)} title={needsFxRate ? "USD/KRW 환율 입력란으로 이동합니다." : undefined} className={`min-h-9 min-w-14 rounded-full px-3 text-xs font-black ${currency === item ? "bg-zinc-950 text-white shadow-sm" : "text-zinc-500"}`}>{item}</button>;
               })}
             </div>
           </div>
@@ -553,17 +567,14 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
               </div>
 
               {fxUnavailable && (
-                <div id="fx-plan-notice" className="mb-4 grid gap-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-amber-950 sm:grid-cols-[minmax(0,1fr)_13rem] sm:items-end" role="status">
+                <div id="fx-plan-notice" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-amber-950" role="status">
                   <div>
                     <p className="text-sm font-extrabold">{fxPlanRestricted ? "현재 FMP 플랜에는 USD/KRW 환율이 포함되지 않습니다." : "USD/KRW 환율을 불러오지 못했습니다."}</p>
-                    <p className="mt-1 text-xs leading-5 text-amber-800">주가·기업 정보·차트·배당 이력은 USD로 계속 볼 수 있습니다. 수동 환율을 입력하면 KRW 투자금과 배당 계산이 활성화됩니다.</p>
+                    <p className="mt-1 text-xs leading-5 text-amber-800">주가·기업 정보·차트·배당 이력은 USD로 계속 볼 수 있습니다. 투자 섹션에서 환율을 입력하면 KRW 투자금과 배당 계산이 활성화됩니다.</p>
                     {fxAvailability?.message && <p className="mt-1 text-xs leading-5 text-amber-800">{fxAvailability.message}</p>}
                     {usingManualFx && <p className="mt-1 text-xs font-bold text-emerald-700">직접 입력한 환율을 계산에 적용 중입니다.</p>}
+                    {!usingManualFx && <button type="button" onClick={focusManualFxRate} className="mt-3 min-h-10 rounded-lg border border-amber-300 bg-white px-3 text-xs font-extrabold text-amber-950 hover:bg-amber-100">환율 입력하기</button>}
                   </div>
-                  <label className="block text-xs font-bold text-amber-950">
-                    수동 USD/KRW 환율
-                    <input aria-label="수동 USD/KRW 환율" className="mt-2 h-11 w-full rounded-lg border border-amber-300 bg-white px-3 text-right text-base font-bold text-zinc-950" type="number" min="1" step="any" inputMode="decimal" placeholder="직접 입력" value={manual.fxRate || ""} onChange={(event) => updateManualFxRate(Number(event.target.value))} />
-                  </label>
                 </div>
               )}
               {data?.delayed && <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">시장 마감 또는 지연 가능 데이터입니다. 아래 최종 갱신 시각을 확인해 주세요.</div>}
@@ -584,12 +595,25 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
 
               <div className="my-8 h-px bg-zinc-200" />
               <SectionHeading eyebrow="01" title="투자금과 보유 수량" description="프리셋은 현재가 기준으로 매수 가능한 정수 수량을 계산합니다." />
+              {fxUnavailable && (
+                <div className={`mb-4 rounded-lg border p-4 ${showFxGuidance && !hasFxRate ? "border-amber-400 bg-amber-50" : "border-zinc-200 bg-zinc-50"}`}>
+                  <label htmlFor="manual-usd-krw-rate" className="block text-sm font-extrabold text-zinc-900">USD/KRW 환율 직접 입력</label>
+                  <p id="manual-fx-help" className="mt-1 text-xs leading-5 text-zinc-600">1달러당 원화 환율을 입력하면 선택한 투자금의 매수 가능 수량과 예상 배당금이 즉시 계산됩니다.</p>
+                  <div className="relative mt-3 sm:max-w-xs">
+                    <input ref={manualFxInputRef} id="manual-usd-krw-rate" aria-label="수동 USD/KRW 환율" aria-describedby="manual-fx-help manual-fx-status" aria-invalid={showFxGuidance && !hasFxRate} className="h-12 w-full rounded-lg border border-zinc-300 bg-white px-3 pr-14 text-right text-base font-bold text-zinc-950 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200" type="number" min="1" step="any" inputMode="decimal" placeholder="환율 직접 입력" value={manual.fxRate || ""} onChange={(event) => updateManualFxRate(Number(event.target.value))} />
+                    <b className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">KRW</b>
+                  </div>
+                  <p id="manual-fx-status" className={`mt-2 text-xs font-bold ${hasFxRate ? "text-emerald-700" : showFxGuidance ? "text-amber-800" : "text-zinc-500"}`} aria-live="polite">
+                    {hasFxRate ? "입력한 환율을 계산에 적용했습니다." : showFxGuidance ? "원화 투자금 계산을 위해 환율을 입력해 주세요." : "FMP에서 환율을 제공하지 않아 직접 입력이 필요합니다."}
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {investmentPresets.map((preset) => <button key={preset} type="button" disabled={!hasFxRate} aria-pressed={investmentKrw === preset} onClick={() => applyInvestment(preset)} className={`min-h-12 rounded-lg border px-3 text-sm font-extrabold disabled:cursor-not-allowed disabled:opacity-40 ${investmentKrw === preset ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400"}`}>{preset === 100_000_000 ? "1억원" : `${won.format(preset / 10_000)}만원`} 투자</button>)}
+                {investmentPresets.map((preset) => <button key={preset} type="button" aria-pressed={investmentKrw === preset} aria-describedby={!hasFxRate ? "manual-fx-help" : undefined} onClick={() => applyInvestment(preset)} className={`min-h-12 rounded-lg border px-3 text-sm font-extrabold ${investmentKrw === preset ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400"}`}>{preset === 100_000_000 ? "1억원" : `${won.format(preset / 10_000)}만원`} 투자</button>)}
               </div>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <label className="min-w-0 flex-1"><span className="mb-2 block text-xs font-bold text-zinc-600">커스텀 투자금액</span><div className="relative"><input aria-label="커스텀 투자금액" className="h-12 w-full rounded-lg border border-zinc-300 px-3 pr-10 text-right text-base font-bold" type="number" min="0" step="10000" inputMode="numeric" value={investmentKrw || ""} onChange={(event) => setInvestmentKrw(Number(event.target.value))} /><b className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">원</b></div></label>
-                <button type="button" onClick={() => applyInvestment(investmentKrw)} disabled={priceUsd <= 0 || !hasFxRate} className="min-h-12 self-end rounded-lg bg-zinc-950 px-5 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-40">투자금 적용</button>
+                <button type="button" onClick={() => applyInvestment(investmentKrw)} disabled={priceUsd <= 0} aria-describedby={!hasFxRate ? "manual-fx-help" : undefined} className="min-h-12 self-end rounded-lg bg-zinc-950 px-5 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-40">투자금 적용</button>
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <label><span className="mb-2 block text-xs font-bold text-zinc-600">보유 수량</span><div className="relative"><input className="h-12 w-full rounded-lg border border-zinc-300 px-3 pr-10 text-right text-base font-bold" type="number" min="0" step="1" inputMode="numeric" value={shares || ""} onChange={(event) => setShares(Math.max(0, Number(event.target.value)))} /><b className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">주</b></div></label>
