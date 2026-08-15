@@ -13,6 +13,11 @@ export type DividendPoint = {
   amount: number;
 };
 
+export type FxAvailability = {
+  status: "available" | "plan-restricted" | "unavailable";
+  message: string | null;
+};
+
 export type StockMarketData = {
   symbol: string;
   name: string;
@@ -38,7 +43,10 @@ export type StockMarketData = {
     exchange: string | null;
     website: string | null;
   };
-  fxRate: number;
+  fxRate: number | null;
+  availability: {
+    fx: FxAvailability;
+  };
   ttmDividend: number;
   dividendYield: number;
   prices: PricePoint[];
@@ -51,6 +59,7 @@ export type StockMarketData = {
 export type StockApiErrorCode =
   | "FMP_API_KEY_MISSING"
   | "FMP_RATE_LIMIT"
+  | "FMP_PLAN_RESTRICTED"
   | "FMP_AUTH_ERROR"
   | "FMP_NO_DATA"
   | "FMP_UPSTREAM_ERROR"

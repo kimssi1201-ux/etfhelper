@@ -97,6 +97,8 @@ test("market data uses only official FMP Stable endpoints and the apikey header"
   assert.match(fmpSource, /headers:\s*\{\s*apikey:\s*apiKey\s*\}/);
   assert.doesNotMatch(fmpSource, /searchParams\.(?:set|append)\(\s*["']apikey["']/i);
   assert.doesNotMatch(fmpSource, /[?&]apikey=/i);
+  assert.match(fmpSource, /fetchFmpArray\(\s*["']\/stable\/dividends["']\s*,\s*commonParams\s*,\s*CACHE_TTL\.dividends\s*\)/);
+  assert.doesNotMatch(fmpSource, /fetchFmpArray\(\s*["']\/stable\/dividends["'][\s\S]{0,180}?\blimit\b/i);
   assert.doesNotMatch(implementationSource, /yahoo/i);
   assert.match(fmpSource, /date\s*>\s*today/);
   assert.match(fmpSource, /paymentDate\s*!==\s*null\s*&&\s*paymentDate\s*>\s*today/);

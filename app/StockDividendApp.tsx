@@ -54,14 +54,16 @@ const dateTime = new Intl.DateTimeFormat("ko-KR", {
   minute: "2-digit",
 });
 
-function formatMoney(usd: number, fxRate: number, currency: CurrencyView) {
+function formatMoney(usd: number, fxRate: number | null, currency: CurrencyView) {
   if (!Number.isFinite(usd)) return "-";
-  return currency === "KRW" ? `${won.format(Math.round(usd * fxRate))}원` : `$${decimal.format(usd)}`;
+  if (currency === "USD") return `$${decimal.format(usd)}`;
+  return fxRate !== null && fxRate > 0 ? `${won.format(Math.round(usd * fxRate))}원` : "환율 입력 필요";
 }
 
-function formatKrwOrUsd(krw: number, fxRate: number, currency: CurrencyView) {
-  if (!Number.isFinite(krw)) return "-";
-  return currency === "KRW" ? `${won.format(Math.round(krw))}원` : `$${decimal.format(fxRate > 0 ? krw / fxRate : 0)}`;
+function formatCalculatedMoney(usd: number, krw: number, fxRate: number | null, currency: CurrencyView) {
+  if (currency === "USD") return Number.isFinite(usd) ? `$${decimal.format(usd)}` : "-";
+  if (fxRate === null || fxRate <= 0) return "환율 입력 필요";
+  return Number.isFinite(krw) ? `${won.format(Math.round(krw))}원` : "-";
 }
 
 function formatNumber(value: number | null, compactMode = false) {
@@ -120,30 +122,44 @@ function SkeletonPanel() {
   );
 }
 
-function DataErrorPanel({ error, onRetry, onApplyManual }: {
+function DataErrorPanel({ error, onRetry, onApplyManual, isEtf = false }: {
   error: StockApiError["error"];
   onRetry: () => void;
   onApplyManual: (values: { price: number; ttmDividend: number; fxRate: number }) => void;
+  isEtf?: boolean;
 }) {
   const [price, setPrice] = useState(0);
   const [ttmDividend, setTtmDividend] = useState(0);
   const [fxRate, setFxRate] = useState(0);
   const missingKey = error.code === "FMP_API_KEY_MISSING";
   const rateLimit = error.code === "FMP_RATE_LIMIT";
+  const planRestricted = error.code === "FMP_PLAN_RESTRICTED";
+  const heading = planRestricted
+    ? isEtf ? "현재 FMP 플랜에서 ETF 데이터를 제공하지 않습니다" : "현재 FMP 플랜에서 이 데이터를 제공하지 않습니다"
+    : missingKey
+      ? "데이터 연결 설정이 필요합니다"
+      : rateLimit
+        ? "API 호출 한도를 초과했습니다"
+        : "시장 데이터를 불러오지 못했습니다";
 
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50 p-5" role="alert">
       <div className="flex items-start gap-3">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-amber-100 text-sm font-black text-amber-800">!</span>
         <div>
-          <h3 className="font-extrabold text-amber-950">{missingKey ? "데이터 연결 설정이 필요합니다" : rateLimit ? "API 호출 한도를 초과했습니다" : "시장 데이터를 불러오지 못했습니다"}</h3>
-          <p className="mt-1 text-sm leading-6 text-amber-900">{error.message}</p>
+          <h3 className="font-extrabold text-amber-950">{heading}</h3>
+          <p className="mt-1 text-sm leading-6 text-amber-900">
+            {planRestricted && isEtf
+              ? "현재 연결된 FMP 플랜에는 이 ETF에 필요한 데이터 엔드포인트가 포함되어 있지 않습니다. 아래에서 현재가, TTM 배당금과 환율을 직접 입력해 계산할 수 있습니다."
+              : error.message}
+          </p>
+          {planRestricted && isEtf && error.message && <p className="mt-2 text-xs leading-5 text-amber-800">FMP 응답: {error.message}</p>}
           {missingKey && (
             <p className="mt-2 text-sm leading-6 text-amber-900">
               프로젝트 루트의 <code className="rounded bg-amber-100 px-1.5 py-0.5 font-mono text-xs">.env.local</code> 파일에서 <code className="rounded bg-amber-100 px-1.5 py-0.5 font-mono text-xs">FMP_API_KEY=</code> 뒤에 값을 입력하고 개발 서버를 다시 시작하세요.
             </p>
           )}
-          {!missingKey && <button type="button" onClick={onRetry} className="mt-3 min-h-11 rounded-lg border border-amber-300 bg-white px-4 text-sm font-bold text-amber-950 hover:bg-amber-100">다시 시도</button>}
+          {!missingKey && !planRestricted && <button type="button" onClick={onRetry} className="mt-3 min-h-11 rounded-lg border border-amber-300 bg-white px-4 text-sm font-bold text-amber-950 hover:bg-amber-100">다시 시도</button>}
         </div>
       </div>
 
@@ -206,11 +222,19 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
           return;
         }
         if (!controller.signal.aborted) {
+          const payloadFxRate = payload.availability.fx.status === "available" && typeof payload.fxRate === "number" && Number.isFinite(payload.fxRate) && payload.fxRate > 0
+            ? payload.fxRate
+            : null;
           setData(payload);
           setError(null);
-          setManual({ price: payload.quote.price, ttmDividend: payload.ttmDividend, fxRate: payload.fxRate });
+          setManual((current) => ({
+            price: payload.quote.price,
+            ttmDividend: payload.ttmDividend,
+            fxRate: payloadFxRate ?? current.fxRate,
+          }));
           setPurchasePrice(payload.quote.price);
-          setShares(calculateAffordableShares(10_000_000, payload.fxRate, payload.quote.price));
+          setShares(payloadFxRate === null ? 0 : calculateAffordableShares(10_000_000, payloadFxRate, payload.quote.price));
+          if (payloadFxRate === null) setCurrency("USD");
           setStatus("ready");
         }
       } catch {
@@ -225,13 +249,24 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
     return () => controller.abort();
   }, [config.symbol, refreshToken]);
 
+  const fxAvailability = data?.availability.fx ?? null;
+  const apiFxRate = fxAvailability?.status === "available" && typeof data?.fxRate === "number" && Number.isFinite(data.fxRate) && data.fxRate > 0
+    ? data.fxRate
+    : null;
+  const manualFxRate = Number.isFinite(manual.fxRate) && manual.fxRate > 0 ? manual.fxRate : null;
+  const fxRate = apiFxRate ?? manualFxRate;
+  const calculationFxRate = fxRate ?? 0;
+  const hasFxRate = fxRate !== null;
+  const usingManualFx = apiFxRate === null && manualFxRate !== null;
+  const fxUnavailable = data !== null && apiFxRate === null;
+  const fxPlanRestricted = fxAvailability?.status === "plan-restricted";
   const priceUsd = data?.quote.price ?? manual.price;
   const ttmDividendUsd = data?.ttmDividend ?? manual.ttmDividend;
-  const fxRate = data?.fxRate ?? manual.fxRate;
-  const canCalculate = priceUsd > 0 && ttmDividendUsd > 0 && fxRate > 0 && shares > 0;
-  const income = useMemo(() => calculateDividendIncome(shares, ttmDividendUsd, fxRate), [shares, ttmDividendUsd, fxRate]);
-  const target = useMemo(() => calculateTargetIncome(targetMonthly, ttmDividendUsd, priceUsd, fxRate), [targetMonthly, ttmDividendUsd, priceUsd, fxRate]);
-  const purchaseTotalKrw = shares * purchasePrice * fxRate;
+  const canCalculate = priceUsd > 0 && ttmDividendUsd > 0 && shares > 0 && (currency === "USD" || hasFxRate);
+  const income = useMemo(() => calculateDividendIncome(shares, ttmDividendUsd, calculationFxRate), [shares, ttmDividendUsd, calculationFxRate]);
+  const target = useMemo(() => calculateTargetIncome(targetMonthly, ttmDividendUsd, priceUsd, calculationFxRate), [targetMonthly, ttmDividendUsd, priceUsd, calculationFxRate]);
+  const purchaseTotalUsd = shares * purchasePrice;
+  const purchaseTotalKrw = purchaseTotalUsd * calculationFxRate;
   const purchaseYield = purchasePrice > 0 ? ttmDividendUsd / purchasePrice * 100 : 0;
 
   const priceView = useMemo(() => {
@@ -266,8 +301,21 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
   function applyInvestment(value: number) {
     const safe = Math.max(value, 0);
     setInvestmentKrw(safe);
-    if (priceUsd > 0 && fxRate > 0) {
+    if (priceUsd > 0 && fxRate !== null && fxRate > 0) {
       setShares(calculateAffordableShares(safe, fxRate, priceUsd));
+      setPurchasePrice(priceUsd);
+    }
+  }
+
+  function updateManualFxRate(value: number) {
+    const nextRate = Number.isFinite(value) && value > 0 ? value : 0;
+    setManual((current) => ({ ...current, fxRate: nextRate }));
+    if (nextRate <= 0) {
+      setCurrency("USD");
+      return;
+    }
+    if (shares <= 0 && priceUsd > 0 && investmentKrw > 0) {
+      setShares(calculateAffordableShares(investmentKrw, nextRate, priceUsd));
       setPurchasePrice(priceUsd);
     }
   }
@@ -320,21 +368,38 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
               <p className="text-xs font-bold text-emerald-700">DIVIDEND CALCULATOR</p>
               <h2 id="calculator-heading" className="mt-1 text-2xl font-black tracking-[-0.04em]">{config.symbol} 예상 배당금 계산</h2>
             </div>
-            <div className="flex items-center rounded-full border border-zinc-200 bg-zinc-100 p-1" role="group" aria-label="표시 통화">
-              {(["USD", "KRW"] as const).map((item) => <button key={item} type="button" aria-pressed={currency === item} onClick={() => setCurrency(item)} className={`min-h-9 min-w-14 rounded-full px-3 text-xs font-black ${currency === item ? "bg-zinc-950 text-white shadow-sm" : "text-zinc-500"}`}>{item}</button>)}
+            <div className="flex items-center rounded-full border border-zinc-200 bg-zinc-100 p-1" role="group" aria-label="표시 통화" aria-describedby={fxUnavailable ? "fx-plan-notice" : undefined}>
+              {(["USD", "KRW"] as const).map((item) => {
+                const disabled = item === "KRW" && !hasFxRate;
+                return <button key={item} type="button" disabled={disabled} aria-pressed={currency === item} onClick={() => setCurrency(item)} title={disabled ? "USD/KRW 환율을 직접 입력하면 사용할 수 있습니다." : undefined} className={`min-h-9 min-w-14 rounded-full px-3 text-xs font-black ${currency === item ? "bg-zinc-950 text-white shadow-sm" : "text-zinc-500"} disabled:cursor-not-allowed disabled:text-zinc-300`}>{item}</button>;
+              })}
             </div>
           </div>
 
           {status === "loading" && <SkeletonPanel />}
-          {status === "error" && error && <DataErrorPanel error={error} onRetry={retry} onApplyManual={applyManual} />}
+          {status === "error" && error && <DataErrorPanel error={error} onRetry={retry} onApplyManual={applyManual} isEtf={config.kind === "etf"} />}
 
           {(status === "ready" || manual.price > 0) && (
             <>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <div><h3 className="text-lg font-black">{data?.name || config.nameEn}</h3><p className="mt-1 text-xs text-zinc-500">{config.symbol} · {data?.profile.exchange || "직접 입력"}</p></div>
-                <div className="text-right"><p className="text-xs font-bold text-zinc-500">USD/KRW 환율</p><p className="mt-1 text-sm font-black">1 USD = {decimal.format(fxRate)} KRW</p></div>
+                <div className="text-right"><p className="text-xs font-bold text-zinc-500">USD/KRW 환율</p><p className="mt-1 text-sm font-black">{fxRate === null ? "FMP 제공 없음" : `1 USD = ${decimal.format(fxRate)} KRW${usingManualFx ? " · 직접 입력" : ""}`}</p></div>
               </div>
 
+              {fxUnavailable && (
+                <div id="fx-plan-notice" className="mb-4 grid gap-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-amber-950 sm:grid-cols-[minmax(0,1fr)_13rem] sm:items-end" role="status">
+                  <div>
+                    <p className="text-sm font-extrabold">{fxPlanRestricted ? "현재 FMP 플랜에는 USD/KRW 환율이 포함되지 않습니다." : "USD/KRW 환율을 불러오지 못했습니다."}</p>
+                    <p className="mt-1 text-xs leading-5 text-amber-800">주가·기업 정보·차트·배당 이력은 USD로 계속 볼 수 있습니다. 수동 환율을 입력하면 KRW 투자금과 배당 계산이 활성화됩니다.</p>
+                    {fxAvailability?.message && <p className="mt-1 text-xs leading-5 text-amber-800">{fxAvailability.message}</p>}
+                    {usingManualFx && <p className="mt-1 text-xs font-bold text-emerald-700">직접 입력한 환율을 계산에 적용 중입니다.</p>}
+                  </div>
+                  <label className="block text-xs font-bold text-amber-950">
+                    수동 USD/KRW 환율
+                    <input aria-label="수동 USD/KRW 환율" className="mt-2 h-11 w-full rounded-lg border border-amber-300 bg-white px-3 text-right text-base font-bold text-zinc-950" type="number" min="1" step="any" inputMode="decimal" placeholder="직접 입력" value={manual.fxRate || ""} onChange={(event) => updateManualFxRate(Number(event.target.value))} />
+                  </label>
+                </div>
+              )}
               {data?.delayed && <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">시장 마감 또는 지연 가능 데이터입니다. 아래 최종 갱신 시각을 확인해 주세요.</div>}
               {!data && manual.price > 0 && <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-900">직접 입력값으로 계산 중입니다. 시세·차트 데이터는 표시되지 않습니다.</div>}
 
@@ -342,7 +407,7 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
                 <Metric label="현재가" value={formatMoney(priceUsd, fxRate, currency)} sub={quoteChange === null ? "직접 입력" : `${quoteChange >= 0 ? "+" : ""}${decimal.format(data?.quote.change ?? 0)} (${quoteChange >= 0 ? "+" : ""}${decimal.format(quoteChange)}%)`} tone={quoteChange === null ? "neutral" : quoteChange >= 0 ? "up" : "down"} />
                 <Metric label="TTM 배당수익률" value={`${decimal.format(priceUsd > 0 ? ttmDividendUsd / priceUsd * 100 : 0)}%`} sub={`연 주당 ${formatMoney(ttmDividendUsd, fxRate, currency)}`} />
                 <Metric label="당일 고가 · 저가" value={data?.quote.dayHigh && data.quote.dayLow ? `${formatMoney(data.quote.dayLow, fxRate, currency)} – ${formatMoney(data.quote.dayHigh, fxRate, currency)}` : "정보 없음"} />
-                <Metric label="시가총액" value={data?.quote.marketCap ? (currency === "KRW" ? `${compact.format(data.quote.marketCap * fxRate)}원` : `$${compact.format(data.quote.marketCap)}`) : "정보 없음"} />
+                <Metric label="시가총액" value={data?.quote.marketCap ? (currency === "KRW" && fxRate !== null ? `${compact.format(data.quote.marketCap * fxRate)}원` : `$${compact.format(data.quote.marketCap)}`) : "정보 없음"} />
               </dl>
 
               <dl className="mt-3 grid gap-3 md:grid-cols-3">
@@ -354,11 +419,11 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
               <div className="my-8 h-px bg-zinc-200" />
               <SectionHeading eyebrow="01" title="투자금과 보유 수량" description="프리셋은 현재가 기준으로 매수 가능한 정수 수량을 계산합니다." />
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {investmentPresets.map((preset) => <button key={preset} type="button" aria-pressed={investmentKrw === preset} onClick={() => applyInvestment(preset)} className={`min-h-12 rounded-lg border px-3 text-sm font-extrabold ${investmentKrw === preset ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400"}`}>{preset === 100_000_000 ? "1억원" : `${won.format(preset / 10_000)}만원`} 투자</button>)}
+                {investmentPresets.map((preset) => <button key={preset} type="button" disabled={!hasFxRate} aria-pressed={investmentKrw === preset} onClick={() => applyInvestment(preset)} className={`min-h-12 rounded-lg border px-3 text-sm font-extrabold disabled:cursor-not-allowed disabled:opacity-40 ${investmentKrw === preset ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400"}`}>{preset === 100_000_000 ? "1억원" : `${won.format(preset / 10_000)}만원`} 투자</button>)}
               </div>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <label className="min-w-0 flex-1"><span className="mb-2 block text-xs font-bold text-zinc-600">커스텀 투자금액</span><div className="relative"><input aria-label="커스텀 투자금액" className="h-12 w-full rounded-lg border border-zinc-300 px-3 pr-10 text-right text-base font-bold" type="number" min="0" step="10000" inputMode="numeric" value={investmentKrw || ""} onChange={(event) => setInvestmentKrw(Number(event.target.value))} /><b className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">원</b></div></label>
-                <button type="button" onClick={() => applyInvestment(investmentKrw)} disabled={priceUsd <= 0 || fxRate <= 0} className="min-h-12 self-end rounded-lg bg-zinc-950 px-5 text-sm font-extrabold text-white disabled:opacity-40">투자금 적용</button>
+                <button type="button" onClick={() => applyInvestment(investmentKrw)} disabled={priceUsd <= 0 || !hasFxRate} className="min-h-12 self-end rounded-lg bg-zinc-950 px-5 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-40">투자금 적용</button>
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <label><span className="mb-2 block text-xs font-bold text-zinc-600">보유 수량</span><div className="relative"><input className="h-12 w-full rounded-lg border border-zinc-300 px-3 pr-10 text-right text-base font-bold" type="number" min="0" step="1" inputMode="numeric" value={shares || ""} onChange={(event) => setShares(Math.max(0, Number(event.target.value)))} /><b className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">주</b></div></label>
@@ -366,12 +431,12 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
               </div>
 
               <div className="mt-6 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50" aria-live="polite">
-                <div className="border-b border-zinc-200 p-5 sm:p-6"><p className="text-sm font-bold text-zinc-500">예상 세후 월평균 배당금</p><strong className="mt-2 block text-3xl font-black tracking-[-0.05em] sm:text-4xl">{canCalculate ? formatKrwOrUsd(income.monthlyNetKrw, fxRate, currency) : "계산 전"}</strong><p className="mt-2 text-xs text-zinc-500">미국 원천징수 15% 적용 · 세전 {canCalculate ? formatKrwOrUsd(income.monthlyGrossKrw, fxRate, currency) : "-"}</p></div>
+                <div className="border-b border-zinc-200 p-5 sm:p-6"><p className="text-sm font-bold text-zinc-500">예상 세후 월평균 배당금</p><strong className="mt-2 block text-3xl font-black tracking-[-0.05em] sm:text-4xl">{canCalculate ? formatCalculatedMoney(income.monthlyNetUsd, income.monthlyNetKrw, fxRate, currency) : "계산 전"}</strong><p className="mt-2 text-xs text-zinc-500">미국 원천징수 15% 적용 · 세전 {canCalculate ? formatCalculatedMoney(income.monthlyGrossUsd, income.monthlyGrossKrw, fxRate, currency) : "-"}</p></div>
                 <dl className="grid grid-cols-1 sm:grid-cols-2">
-                  <div className="border-b border-zinc-200 p-4 sm:border-r"><dt className="text-xs text-zinc-500">{config.payoutFrequency === "quarterly" ? "예상 세후 분기 배당금" : "예상 세후 3개월 배당금"}</dt><dd className="mt-1 text-base font-black">{canCalculate ? formatKrwOrUsd(income.quarterlyNetKrw, fxRate, currency) : "-"}</dd><p className="mt-1 text-xs text-zinc-500">세전 {canCalculate ? formatKrwOrUsd(income.quarterlyGrossKrw, fxRate, currency) : "-"}</p></div>
-                  <div className="border-b border-zinc-200 p-4"><dt className="text-xs text-zinc-500">예상 세후 연간 배당금</dt><dd className="mt-1 text-base font-black">{canCalculate ? formatKrwOrUsd(income.annualNetKrw, fxRate, currency) : "-"}</dd></div>
-                  <div className="border-b border-zinc-200 p-4 sm:border-b-0 sm:border-r"><dt className="text-xs text-zinc-500">예상 세전 연간 배당금</dt><dd className="mt-1 text-base font-black">{canCalculate ? formatKrwOrUsd(income.annualGrossKrw, fxRate, currency) : "-"}</dd></div>
-                  <div className="p-4"><dt className="text-xs text-zinc-500">총 매수금액 · 매수가 기준 수익률</dt><dd className="mt-1 text-base font-black">{canCalculate ? `${formatKrwOrUsd(purchaseTotalKrw, fxRate, currency)} · ${decimal.format(purchaseYield)}%` : "-"}</dd></div>
+                  <div className="border-b border-zinc-200 p-4 sm:border-r"><dt className="text-xs text-zinc-500">{config.payoutFrequency === "quarterly" ? "예상 세후 분기 배당금" : "예상 세후 3개월 배당금"}</dt><dd className="mt-1 text-base font-black">{canCalculate ? formatCalculatedMoney(income.quarterlyNetUsd, income.quarterlyNetKrw, fxRate, currency) : "-"}</dd><p className="mt-1 text-xs text-zinc-500">세전 {canCalculate ? formatCalculatedMoney(income.quarterlyGrossUsd, income.quarterlyGrossKrw, fxRate, currency) : "-"}</p></div>
+                  <div className="border-b border-zinc-200 p-4"><dt className="text-xs text-zinc-500">예상 세후 연간 배당금</dt><dd className="mt-1 text-base font-black">{canCalculate ? formatCalculatedMoney(income.annualNetUsd, income.annualNetKrw, fxRate, currency) : "-"}</dd></div>
+                  <div className="border-b border-zinc-200 p-4 sm:border-b-0 sm:border-r"><dt className="text-xs text-zinc-500">예상 세전 연간 배당금</dt><dd className="mt-1 text-base font-black">{canCalculate ? formatCalculatedMoney(income.annualGrossUsd, income.annualGrossKrw, fxRate, currency) : "-"}</dd></div>
+                  <div className="p-4"><dt className="text-xs text-zinc-500">총 매수금액 · 매수가 기준 수익률</dt><dd className="mt-1 text-base font-black">{canCalculate ? `${formatCalculatedMoney(purchaseTotalUsd, purchaseTotalKrw, fxRate, currency)} · ${decimal.format(purchaseYield)}%` : "-"}</dd></div>
                 </dl>
               </div>
             </>
@@ -445,7 +510,7 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
           <SectionHeading id="target-heading" eyebrow="04" title="목표 월 배당금" description="세후 월평균 목표에 필요한 투자금과 정수 주식 수를 계산합니다." />
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{targetPresets.map((preset) => <button key={preset} type="button" aria-pressed={targetMonthly === preset} onClick={() => setTargetMonthly(preset)} className={`min-h-12 rounded-lg border px-3 text-sm font-extrabold ${targetMonthly === preset ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-zinc-200 text-zinc-700"}`}>월 {won.format(preset / 10_000)}만원</button>)}</div>
           <label className="mt-4 block"><span className="mb-2 block text-xs font-bold text-zinc-600">목표 세후 월평균 배당금</span><div className="relative"><input className="h-12 w-full rounded-lg border border-zinc-300 px-3 pr-10 text-right text-base font-bold" type="number" min="0" step="10000" inputMode="numeric" value={targetMonthly || ""} onChange={(event) => setTargetMonthly(Math.max(0, Number(event.target.value)))} /><b className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">원</b></div></label>
-          <dl className="mt-4 grid gap-px overflow-hidden rounded-xl border border-zinc-200 bg-zinc-200 sm:grid-cols-2" aria-live="polite"><div className="bg-zinc-50 p-5"><dt className="text-xs font-bold text-zinc-500">필요 투자금</dt><dd className="mt-2 text-2xl font-black tracking-[-0.04em]">{target.investmentKrw > 0 ? formatKrwOrUsd(target.investmentKrw, fxRate, currency) : "계산 불가"}</dd></div><div className="bg-zinc-50 p-5"><dt className="text-xs font-bold text-zinc-500">필요 주식 수</dt><dd className="mt-2 text-2xl font-black tracking-[-0.04em]">{target.shares > 0 ? `${won.format(target.shares)}주` : "-"}</dd></div></dl>
+          <dl className="mt-4 grid gap-px overflow-hidden rounded-xl border border-zinc-200 bg-zinc-200 sm:grid-cols-2" aria-live="polite"><div className="bg-zinc-50 p-5"><dt className="text-xs font-bold text-zinc-500">필요 투자금</dt><dd className="mt-2 text-2xl font-black tracking-[-0.04em]">{!hasFxRate ? "환율 입력 필요" : target.investmentKrw > 0 ? formatCalculatedMoney(target.investmentUsd, target.investmentKrw, fxRate, currency) : "계산 불가"}</dd></div><div className="bg-zinc-50 p-5"><dt className="text-xs font-bold text-zinc-500">필요 주식 수</dt><dd className="mt-2 text-2xl font-black tracking-[-0.04em]">{target.shares > 0 ? `${won.format(target.shares)}주` : "-"}</dd></div></dl>
           <p className="mt-3 text-xs leading-5 text-zinc-500">현재가·현재 환율·최근 12개월 실제 배당금과 미국 원천징수 15%가 유지된다는 단순 가정입니다.</p>
         </section>
 

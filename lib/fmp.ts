@@ -1,5 +1,6 @@
 import type {
   DividendPoint,
+  FxAvailability,
   PricePoint,
   StockApiErrorCode,
   StockMarketData,
@@ -18,6 +19,11 @@ const CACHE_TTL = {
 
 const QUOTE_DELAY_THRESHOLD_MS = 20 * 60 * 1000;
 const MAX_FUTURE_CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+const FX_PLAN_RESTRICTED_MESSAGE =
+  "현재 FMP 요금제에서는 USD/KRW 환율을 제공하지 않습니다. 원화 계산에는 직접 입력한 환율이 필요합니다.";
+const FX_UNAVAILABLE_MESSAGE =
+  "USD/KRW 환율 데이터를 불러오지 못했습니다. 원화 계산에는 직접 입력한 환율이 필요합니다.";
 
 type FmpRecord = Record<string, unknown>;
 
@@ -45,6 +51,8 @@ function fixedError(code: StockApiErrorCode) {
       );
     case "FMP_RATE_LIMIT":
       return new FmpDataError(code, "FMP API 호출 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.");
+    case "FMP_PLAN_RESTRICTED":
+      return new FmpDataError(code, "현재 FMP 요금제에서 제공하지 않는 데이터입니다.");
     case "FMP_AUTH_ERROR":
       return new FmpDataError(code, "FMP API 인증에 실패했습니다. 서버 환경변수 설정을 확인해 주세요.");
     case "FMP_NO_DATA":
@@ -64,7 +72,8 @@ function classifyPayloadError(payload: unknown) {
     .join(" ")
     .toLowerCase();
 
-  if (/limit|too many|quota|upgrade|subscription/.test(text)) return fixedError("FMP_RATE_LIMIT");
+  if (/limit|too many|quota|rate limit/.test(text)) return fixedError("FMP_RATE_LIMIT");
+  if (/upgrade|subscription|entitlement|premium|pricing plan/.test(text)) return fixedError("FMP_PLAN_RESTRICTED");
   if (/api[ _-]?key|unauthori[sz]ed|forbidden|authentication/.test(text)) return fixedError("FMP_AUTH_ERROR");
   return null;
 }
@@ -88,6 +97,7 @@ async function fetchFmpArray(path: string, params: Record<string, string>, ttl: 
   }
 
   if (response.status === 401 || response.status === 403) throw fixedError("FMP_AUTH_ERROR");
+  if (response.status === 402) throw fixedError("FMP_PLAN_RESTRICTED");
   if (response.status === 429) throw fixedError("FMP_RATE_LIMIT");
   if (response.status >= 500) throw fixedError("FMP_UPSTREAM_ERROR");
   if (!response.ok) throw fixedError("FMP_UPSTREAM_ERROR");
@@ -202,6 +212,36 @@ function calculateChangePercent(price: number, previousClose: number | null) {
   return ((price - previousClose) / previousClose) * 100;
 }
 
+type FxResult = {
+  rate: number | null;
+  availability: FxAvailability;
+};
+
+async function getOptionalFxRate(): Promise<FxResult> {
+  try {
+    const rows = await fetchFmpArray("/stable/quote", { symbol: "USDKRW" }, CACHE_TTL.fx);
+    const rate = positiveNumber(rows[0].price);
+    if (rate === null) throw fixedError("FMP_NO_DATA");
+    return {
+      rate,
+      availability: { status: "available", message: null },
+    };
+  } catch (error) {
+    if (!(error instanceof FmpDataError)) throw error;
+    if (error.code === "FMP_API_KEY_MISSING" || error.code === "FMP_AUTH_ERROR") throw error;
+    if (error.code === "FMP_PLAN_RESTRICTED") {
+      return {
+        rate: null,
+        availability: { status: "plan-restricted", message: FX_PLAN_RESTRICTED_MESSAGE },
+      };
+    }
+    return {
+      rate: null,
+      availability: { status: "unavailable", message: FX_UNAVAILABLE_MESSAGE },
+    };
+  }
+}
+
 export async function getStockMarketData(symbol: string): Promise<StockMarketData> {
   const stock = getStockBySymbol(symbol);
   if (!stock) throw fixedError("UNSUPPORTED_SYMBOL");
@@ -210,7 +250,7 @@ export async function getStockMarketData(symbol: string): Promise<StockMarketDat
   const from = new Date(Date.UTC(now.getUTCFullYear() - 6, now.getUTCMonth(), now.getUTCDate()));
   const commonParams = { symbol: stock.symbol };
 
-  const [quoteRows, profileRows, priceRows, dividendRows, fxRows] = await Promise.all([
+  const [quoteRows, profileRows, priceRows, dividendRows, fx] = await Promise.all([
     fetchFmpArray("/stable/quote", commonParams, CACHE_TTL.quote),
     fetchFmpArray("/stable/profile", commonParams, CACHE_TTL.profile),
     fetchFmpArray(
@@ -218,16 +258,14 @@ export async function getStockMarketData(symbol: string): Promise<StockMarketDat
       { ...commonParams, from: dateKey(from), to: dateKey(now) },
       CACHE_TTL.prices,
     ),
-    fetchFmpArray("/stable/dividends", { ...commonParams, limit: "1000" }, CACHE_TTL.dividends),
-    fetchFmpArray("/stable/quote", { symbol: "USDKRW" }, CACHE_TTL.fx),
+    fetchFmpArray("/stable/dividends", commonParams, CACHE_TTL.dividends),
+    getOptionalFxRate(),
   ]);
 
   const quote = quoteRows[0];
   const profile = profileRows[0];
-  const fxQuote = fxRows[0];
   const price = positiveNumber(quote.price);
-  const fxRate = positiveNumber(fxQuote.price);
-  if (price === null || fxRate === null) throw fixedError("FMP_NO_DATA");
+  if (price === null) throw fixedError("FMP_NO_DATA");
 
   const prices = parsePrices(priceRows);
   const dividends = parseDividends(dividendRows, dateKey(now));
@@ -264,7 +302,8 @@ export async function getStockMarketData(symbol: string): Promise<StockMarketDat
       exchange: nullableText(profile.exchangeFullName) ?? nullableText(profile.exchange),
       website: nullableText(profile.website),
     },
-    fxRate,
+    fxRate: fx.rate,
+    availability: { fx: fx.availability },
     ttmDividend,
     dividendYield: price > 0 ? ttmDividend / price * 100 : 0,
     prices,

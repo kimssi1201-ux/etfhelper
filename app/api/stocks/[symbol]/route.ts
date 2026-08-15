@@ -9,6 +9,7 @@ type RouteContext = {
 const ERROR_STATUS: Record<StockApiErrorCode, number> = {
   FMP_API_KEY_MISSING: 503,
   FMP_RATE_LIMIT: 429,
+  FMP_PLAN_RESTRICTED: 402,
   FMP_AUTH_ERROR: 502,
   FMP_NO_DATA: 404,
   FMP_UPSTREAM_ERROR: 502,
