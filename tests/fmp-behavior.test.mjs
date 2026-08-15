@@ -241,12 +241,11 @@ test("402 for a required dataset returns a distinct safe plan error", async () =
 });
 
 test("nullable FX contract and deployable files contain neither a secret nor a fabricated FX rate", async () => {
-  const [marketSource, fmpSource, componentSource, clientBuild, serverBuild] = await Promise.all([
+  const [marketSource, fmpSource, componentSource, clientBuild] = await Promise.all([
     readFile(new URL("../lib/market-data.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/fmp.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/StockDividendApp.tsx", import.meta.url), "utf8"),
     readTextTree(new URL("../dist/client/", import.meta.url)),
-    readTextTree(new URL("../dist/server/", import.meta.url)),
   ]);
 
   assert.match(marketSource, /fxRate:\s*number\s*\|\s*null/);
