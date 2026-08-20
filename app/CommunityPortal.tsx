@@ -19,7 +19,7 @@ function HotPost({ post, rank }: { post: ReturnType<typeof listPosts>["posts"][n
 }
 
 export default function CommunityPortal({ initialCommunity }: { initialCommunity?: string }) {
-  const [community, setCommunity] = useState(initialCommunity ?? "all");
+  const [community] = useState(initialCommunity ?? "all");
   const [sort, setSort] = useState<PostSort>("popular");
   const [query, setQuery] = useState("");
   const fallback = useMemo(() => listPosts({ community: community === "all" ? undefined : community, sort, q: query }), [community, sort, query]);
