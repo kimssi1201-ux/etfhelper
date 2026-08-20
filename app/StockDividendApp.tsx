@@ -489,9 +489,9 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
     : 0;
 
   return (
-    <main className="min-h-screen bg-white text-zinc-950">
-      <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-4">
+    <main className="detail-shell min-h-screen bg-white text-zinc-950">
+      <header className="detail-header sticky top-0 z-30 border-b border-zinc-200 bg-white/95 backdrop-blur">
+        <div className="detail-header-inner mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-4">
           <Link href="/xom" className="flex items-center gap-2.5 no-underline">
             <span className="grid h-9 w-9 place-items-center rounded-lg bg-zinc-950 text-sm font-black text-white">배</span>
             <span><b className="block text-sm font-black tracking-[-0.02em]">배당계산기</b><small className="block text-[10px] font-medium text-zinc-500">Dividend Calculator</small></span>
@@ -500,7 +500,7 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
         </div>
       </header>
 
-      <section className="mx-auto w-full max-w-3xl px-4 pb-9 pt-14 text-center md:pt-20">
+      <section className="detail-hero mx-auto w-full max-w-3xl px-4 pb-9 pt-14 text-center md:pt-20">
         <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">미국 {stockKindLabels[config.kind]?.label ?? "종목"} · {payoutFrequencyLabels[config.payoutFrequency]?.hero ?? "지급 주기 확인"}</span>
         <h1 className="mt-5 text-4xl font-black tracking-[-0.055em] text-zinc-950 md:text-5xl">{config.symbol} 배당금 계산기</h1>
         <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-zinc-600 md:text-lg">{config.headline}</p>
@@ -508,7 +508,7 @@ export default function StockDividendApp({ config }: { config: StockConfig }) {
       </section>
 
       <div className="mx-auto w-full max-w-3xl space-y-4 px-3 pb-20 sm:px-4">
-        <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-7" aria-labelledby="calculator-heading">
+        <section className="detail-card rounded-xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-7" aria-labelledby="calculator-heading">
           <div className="mb-7 flex flex-col items-center justify-between gap-4 border-b border-zinc-200 pb-6 sm:flex-row">
             <div>
               <p className="text-xs font-bold text-emerald-700">DIVIDEND CALCULATOR</p>
