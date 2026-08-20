@@ -111,8 +111,8 @@ button:disabled {
 .hot-search input { width: 1px; border: 0; }
 .hot-community-tabs { display: flex; overflow-x: auto; padding: 0 12px; background: #071c2b; border-top: 1px solid #294050; scrollbar-width: none; }
 .hot-community-tabs::-webkit-scrollbar { display: none; }
-.hot-community-tabs button { min-width: 62px; padding: 12px 11px; border: 0; border-right: 1px solid #263a49; background: transparent; color: #e4e9ed; font-size: 15px; font-weight: 800; white-space: nowrap; }
-.hot-community-tabs button.active { background: #34475f; color: #fff; }
+.hot-community-tabs button, .hot-community-tabs a { min-width: 62px; padding: 12px 11px; border: 0; border-right: 1px solid #263a49; background: transparent; color: #e4e9ed; font-size: 15px; font-weight: 800; text-align: center; text-decoration: none; white-space: nowrap; }
+.hot-community-tabs button.active, .hot-community-tabs a.active { background: #34475f; color: #fff; }
 .hot-status { display: flex; align-items: center; gap: 14px; min-height: 44px; padding: 0 10px; background: #34395d; color: #d8d9e3; font-size: 12px; }
 .hot-status strong { color: #fff; font-size: 17px; }
 .hot-online { color: #83eb84; font-weight: 800; }
