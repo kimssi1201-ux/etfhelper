@@ -6,7 +6,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   const url = new URL(request.url);
   const sort = url.searchParams.get("sort") === "latest" ? "latest" as const : "popular" as const;
   try {
-    const live = slug === "all" ? [] : await collectLiveCommunity(slug);
+    const live = slug === "all"
+      ? (await Promise.all(["bobae", "ruliweb", "todayhumor"].map((item) => collectLiveCommunity(item)))).flat()
+      : await collectLiveCommunity(slug);
     if (live.length) return Response.json({ posts: live, total: live.length, source: "live", notice: "공개 목록의 제목·링크만 표시합니다." }, { headers: { "cache-control": "public, max-age=300, stale-while-revalidate=600" } });
   } catch {
     // 정책/네트워크 오류 시 샘플 또는 저장소 데이터로 안전하게 대체합니다.
