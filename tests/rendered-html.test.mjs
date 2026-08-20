@@ -53,10 +53,10 @@ test("root renders the community brief home", async () => {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /모아봄/);
-  assert.match(html, /오늘 인기글/);
-  assert.match(html, /커뮤니티 필터/);
-  assert.match(html, /원문은 복제하지 않아요/);
-  assert.match(html, /community-bottom-nav/);
+  assert.match(html, /실시간 커뮤니티 인기글/);
+  assert.match(html, /베스트 보기/);
+  assert.match(html, /hot-post-row/);
+  assert.match(html, /원문·댓글·이미지를 무단 복제하지 않으며/);
 });
 
 test("every stock in the shared verified universe server-renders content, SEO, structured data, and disclaimer", async (t) => {
