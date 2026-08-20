@@ -16,8 +16,8 @@ function absolute(href: string, base: string) {
 
 function extract(html: string, slug: string, base: string): CommunityPost[] {
   const patterns: Record<string, RegExp> = {
-    bobae: /<tr[^>]*>\s*(?:.|\n)*?<a[^>]+href="([^"]*\/board\/[^"#]+|[^"]*\/view[^"#]+)"[^>]*>([\s\S]*?)<\/a>/gi,
-    ruliweb: /<a[^>]+href="([^"]*\/best\/board\/[^"#]+)"[^>]*>[\s\S]*?<\/span>\s*([\s\S]*?)<\/a>/gi,
+    bobae: /<a[^>]+href="([^"]*\/view\?code=best&No=\d+[^"#]*)"[^>]*>([\s\S]*?)<\/a>/gi,
+    ruliweb: /<a[^>]+href="([^"]*\/best\/board\/[^"#]+)"[^>]*>([\s\S]*?)<\/a>/gi,
     todayhumor: /<a[^>]+href="([^"]*\/board\/view\.php\?table=humorbest&no=\d+[^"#]*)"[^>]*>([\s\S]*?)<\/a>/gi,
   };
   const pattern = patterns[slug];
