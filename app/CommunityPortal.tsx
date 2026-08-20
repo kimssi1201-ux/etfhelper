@@ -25,19 +25,19 @@ export default function CommunityPortal({ initialCommunity }: { initialCommunity
   const fallback = useMemo(() => listPosts({ community: community === "all" ? undefined : community, sort, q: query }), [community, sort, query]);
   const [remotePosts, setRemotePosts] = useState<typeof fallback.posts | null>(null);
   // The fallback list is intentionally excluded: only the selected source and sort trigger a network refresh.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     let cancelled = false;
     const slug = community === "all" ? "all" : community;
     fetch(`/api/community/${slug}?sort=${sort}`).then((response) => response.ok ? response.json() : null).then((data: { posts?: typeof fallback.posts } | null) => { if (!cancelled && data?.posts?.length) setRemotePosts(data.posts); }).catch(() => undefined);
     return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [community, sort]);
   const result = { ...fallback, posts: remotePosts ?? fallback.posts };
 
   return <main className="hot-shell" id="top">
     <header className="hot-header"><Link href="/" className="hot-brand"><span className="hot-brand-mark">핫</span><strong>핫게</strong><small>실시간 커뮤니티 인기글</small></Link><label className="hot-search"><span>검색</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="제목 검색" /></label></header>
     <nav className="hot-community-tabs" aria-label="커뮤니티 선택"><button className={community === "all" ? "active" : ""} onClick={() => setCommunity("all")}>종합</button>{communities.map((item) => <button key={item.slug} className={community === item.slug ? "active" : ""} onClick={() => setCommunity(item.slug)}>{item.name.replace("드림", "")}</button>)}</nav>
-    <div className="hot-status"><strong>{community === "all" ? "종합" : communities.find((item) => item.slug === community)?.name}</strong><span className="hot-online">썸네일 ON</span><span>다크모드 ON</span><div className="hot-sort"><button className={sort === "popular" ? "active" : ""} onClick={() => setSort("popular")}>베스트 보기⌄</button><button className={sort === "latest" ? "active" : ""} onClick={() => setSort("latest")}>최신순</button></div></div>
+    <div className="hot-status"><strong>{community === "all" ? "종합" : communities.find((item) => item.slug === community)?.name}</strong><span className="hot-online">{community === "slr" ? "자동수집 대기" : "실시간 연결"}</span><span>원문 링크</span><div className="hot-sort"><button className={sort === "popular" ? "active" : ""} onClick={() => setSort("popular")}>베스트 보기⌄</button><button className={sort === "latest" ? "active" : ""} onClick={() => setSort("latest")}>최신순</button></div></div>
     <section className="hot-list" aria-label="인기 게시글">{result.posts.filter((post) => !query || `${post.title} ${post.summary}`.toLocaleLowerCase("ko-KR").includes(query.toLocaleLowerCase("ko-KR"))).map((post, index) => <HotPost key={post.id} post={post} rank={index + 1} />)}{!result.posts.length && <div className="hot-empty">검색 결과가 없습니다.</div>}</section>
     <section className="hot-notice"><strong>안내</strong><p>제목·작성시간·공개 반응 수치와 직접 작성한 짧은 요약만 제공합니다. 원문은 출처 링크에서 확인하세요.</p></section>
     <footer className="hot-footer"><Link href="/admin">관리자</Link><Link href="#top">맨 위로 ↑</Link><small>원문·댓글·이미지를 무단 복제하지 않으며 출처를 표시합니다.</small></footer>

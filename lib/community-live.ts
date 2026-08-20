@@ -16,7 +16,7 @@ function absolute(href: string, base: string) {
 
 function extract(html: string, slug: string, base: string): CommunityPost[] {
   if (!sourceUrls[slug]) return [];
-  const pattern = /<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  const pattern = /<a\b[^>]*href\s*=\s*["']?([^"' >]+)["']?[^>]*>([\s\S]*?)<\/a>/gi;
   const posts: CommunityPost[] = [];
   const seen = new Set<string>();
   for (const match of html.matchAll(pattern)) {
