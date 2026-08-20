@@ -48,10 +48,15 @@ function displayName(stock) {
     : `${stock.nameKo}(${stock.symbol})`;
 }
 
-test("root redirects to the default XOM calculator", async () => {
+test("root renders the dividend portal home", async () => {
   const response = await render("/");
-  assert.ok(response.status >= 300 && response.status < 400, `expected redirect, received ${response.status}`);
-  assert.equal(new URL(response.headers.get("location"), ORIGIN).pathname, "/xom");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /배당계산기/);
+  assert.match(html, /오늘의 배당 흐름/);
+  assert.match(html, /자주 찾는 배당 종목/);
+  assert.match(html, /투자 가이드/);
+  assert.match(html, /mobile-bottom-nav/);
 });
 
 test("every stock in the shared verified universe server-renders content, SEO, structured data, and disclaimer", async (t) => {

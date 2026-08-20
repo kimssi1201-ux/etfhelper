@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import HomePortal from "./HomePortal";
 
 export default function Home() {
-  redirect("/xom");
+  return <HomePortal />;
 }
