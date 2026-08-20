@@ -15,21 +15,20 @@ function absolute(href: string, base: string) {
 }
 
 function extract(html: string, slug: string, base: string): CommunityPost[] {
-  const patterns: Record<string, RegExp> = {
-    bobae: /<a[^>]+href="([^"]*\/view\?code=best&No=\d+[^"#]*)"[^>]*>([\s\S]*?)<\/a>/gi,
-    ruliweb: /<a[^>]+href="([^"]*\/best\/board\/[^"#]+)"[^>]*>([\s\S]*?)<\/a>/gi,
-    todayhumor: /<a[^>]+href="([^"]*\/board\/view\.php\?table=humorbest&no=\d+[^"#]*)"[^>]*>([\s\S]*?)<\/a>/gi,
-  };
-  const pattern = patterns[slug];
-  if (!pattern) return [];
+  if (!sourceUrls[slug]) return [];
+  const pattern = /<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
   const posts: CommunityPost[] = [];
   const seen = new Set<string>();
   for (const match of html.matchAll(pattern)) {
-    const url = absolute(match[1], base);
+    const href = match[1];
+    const allowed = slug === "bobae" ? /\/view\?code=best&No=\d+/i.test(href) : slug === "ruliweb" ? /\/best\/board\//i.test(href) : /\/board\/view\.php\?table=humorbest&no=\d+/i.test(href);
+    if (!allowed || /cmt=|comment/i.test(href)) continue;
+    const url = absolute(href, base);
     const title = clean(match[2]);
     if (!url || title.length < 2 || title.length > 240 || seen.has(url)) continue;
     seen.add(url);
-    const externalId = url.split(/[/?=&]/).filter(Boolean).pop() ?? `live-${posts.length}`;
+    const parsed = new URL(url);
+    const externalId = parsed.searchParams.get("No") ?? parsed.searchParams.get("no") ?? parsed.pathname.split("/").filter(Boolean).pop() ?? `live-${posts.length}`;
     posts.push({ id: `${slug}:${externalId}`, communitySlug: slug, communityName: slug === "bobae" ? "보배드림" : slug === "ruliweb" ? "루리웹" : "오늘의유머", externalId, title, originalUrl: url, thumbnailUrl: null, summary: "공개 목록에서 확인한 제목과 원문 링크입니다.", authorName: null, views: null, likes: null, commentsCount: null, publishedAt: new Date().toISOString(), collectedAt: new Date().toISOString(), status: "published" });
     if (posts.length >= 30) break;
   }
