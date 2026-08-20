@@ -1,0 +1,14 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+
+export default function AdminPage() {
+  const [authorized, setAuthorized] = useState(false);
+  const [key, setKey] = useState("");
+  const [message, setMessage] = useState("");
+  const [form, setForm] = useState({ community: "bobae", title: "", originalUrl: "", summary: "" });
+  async function login(event: React.FormEvent) { event.preventDefault(); const response = await fetch("/api/admin/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key }) }); if (response.ok) { setAuthorized(true); setMessage("관리자 모드가 활성화됐습니다."); } else setMessage("인증에 실패했습니다. ADMIN_ACCESS_KEY 환경변수를 확인하세요."); }
+  async function submit(event: React.FormEvent) { event.preventDefault(); const response = await fetch("/api/posts", { method: "POST", headers: { "content-type": "application/json", "x-admin-key": key }, body: JSON.stringify(form) }); setMessage(response.ok ? "게시글이 등록됐습니다. (현재 런타임 저장소)" : "등록하지 못했습니다. 제목·원문 링크·요약을 확인하세요."); }
+  return <main className="admin-shell"><header className="post-header"><Link href="/" className="community-logo"><span className="community-logo-mark">모</span><span><b>모아봄</b><small>ADMIN</small></span></Link><Link href="/" className="post-back">홈으로 돌아가기 →</Link></header><div className="admin-container"><p className="community-eyebrow">CONTENT CONTROL</p><h1>관리자 센터</h1><p className="admin-lead">게시글을 직접 등록하고, 출처와 요약을 관리합니다. 원문 본문·댓글·이미지는 저장하지 않습니다.</p>{!authorized ? <form className="admin-card" onSubmit={login}><label>관리자 접근 키<input type="password" value={key} onChange={(event) => setKey(event.target.value)} placeholder="ADMIN_ACCESS_KEY" required /></label><button type="submit" className="post-original-button">관리자 로그인</button></form> : <form className="admin-card" onSubmit={submit}><div className="admin-form-grid"><label>커뮤니티<select value={form.community} onChange={(event) => setForm({ ...form, community: event.target.value })}><option value="bobae">보배드림</option><option value="ruliweb">루리웹</option><option value="slr">SLR클럽</option><option value="todayhumor">오늘의유머</option></select></label><label>원문 URL<input type="url" value={form.originalUrl} onChange={(event) => setForm({ ...form, originalUrl: event.target.value })} required placeholder="https://..." /></label></div><label>제목<input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required /></label><label>직접 작성한 요약<textarea value={form.summary} onChange={(event) => setForm({ ...form, summary: event.target.value })} rows={5} required /></label><button type="submit" className="post-original-button">게시글 등록</button></form>}<p className="admin-message" role="status">{message}</p><div className="admin-note"><b>연결 상태</b><p>현재 화면은 저장소 추상화와 수동 등록 API를 제공합니다. 운영용 영구 저장은 Supabase 환경변수와 마이그레이션 적용 후 활성화하세요.</p></div></div></main>;
+}

@@ -1,5 +1,5 @@
-import HomePortal from "./HomePortal";
+import CommunityPortal from "./CommunityPortal";
 
 export default function Home() {
-  return <HomePortal />;
+  return <CommunityPortal />;
 }

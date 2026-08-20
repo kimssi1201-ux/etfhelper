@@ -48,15 +48,15 @@ function displayName(stock) {
     : `${stock.nameKo}(${stock.symbol})`;
 }
 
-test("root renders the dividend portal home", async () => {
+test("root renders the community brief home", async () => {
   const response = await render("/");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /배당계산기/);
-  assert.match(html, /오늘의 배당 흐름/);
-  assert.match(html, /자주 찾는 배당 종목/);
-  assert.match(html, /투자 가이드/);
-  assert.match(html, /mobile-bottom-nav/);
+  assert.match(html, /모아봄/);
+  assert.match(html, /오늘 인기글/);
+  assert.match(html, /커뮤니티 필터/);
+  assert.match(html, /원문은 복제하지 않아요/);
+  assert.match(html, /community-bottom-nav/);
 });
 
 test("every stock in the shared verified universe server-renders content, SEO, structured data, and disclaimer", async (t) => {

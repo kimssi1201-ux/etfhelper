@@ -33,37 +33,29 @@ async function getRequestOrigin() {
 
 export async function generateMetadata(): Promise<Metadata> {
   const origin = await getRequestOrigin();
-  const title = "배당계산기 | 미국 배당주 수익 계산";
+  const title = "모아봄 | 여러 커뮤니티 인기글을 한눈에";
   const description =
-    "실제 최근 12개월 배당 이력과 현재가를 바탕으로 미국 배당주의 월평균·분기·연간 배당금을 계산해 보세요.";
-  const socialImage = new URL("/og-dividend-calculator.png", origin).toString();
+    "여러 커뮤니티의 공개 게시글 제목과 메타데이터, 직접 작성한 짧은 요약을 한곳에서 확인하고 원문으로 이동하세요.";
 
   return {
     metadataBase: origin,
     title: {
       default: title,
-      template: "%s | 배당계산기",
+      template: "%s | 모아봄",
     },
     description,
-    applicationName: "배당계산기",
+    applicationName: "모아봄",
     openGraph: {
       title,
       description,
       type: "website",
       locale: "ko_KR",
-      siteName: "배당계산기",
-      images: [{
-        url: socialImage,
-        width: 1730,
-        height: 909,
-        alt: "배당계산기 미국 배당주 수익 계산",
-      }],
+      siteName: "모아봄",
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: [socialImage],
     },
   };
 }
