@@ -157,6 +157,7 @@ button:disabled {
 .keyword-recent button { padding: 8px 10px; border-color: #ddd; background: #fff; color: #333; font-size: 12px; }
 .keyword-summary, .keyword-panel, .keyword-grid, .keyword-footer { max-width: 1040px; margin-right: auto; margin-left: auto; }
 .keyword-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 20px 16px 10px; }
+.keyword-alert { max-width: 1008px; margin: 10px auto 0; padding: 12px 14px; border: 1px solid #d8d8d8; background: #f7f7f7; color: #333; font-size: 13px; }
 .keyword-summary article, .keyword-panel, .keyword-grid article { border: 1px solid #e0e0e0; background: #fff; }
 .keyword-summary article { min-height: 132px; padding: 18px; }
 .keyword-summary span, .keyword-summary small { display: block; color: #666; font-size: 12px; }

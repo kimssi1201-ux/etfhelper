@@ -1,9 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-const relatedSeeds = [
+type KeywordMetric = {
+  keyword: string;
+  pc: number;
+  mobile: number;
+  total: number;
+  mobileRate: number;
+  competition: string;
+  bid: number | null;
+};
+
+type KeywordApiResponse = {
+  keyword: string;
+  results: KeywordMetric[];
+  updatedAt: string;
+  source: "NAVER_SEARCHAD";
+};
+
+const relatedSeedInputs: Array<Omit<KeywordMetric, "total" | "mobileRate">> = [
   { keyword: "부업", pc: 18400, mobile: 81200, competition: "높음", bid: 920 },
   { keyword: "재택 부업", pc: 6100, mobile: 28800, competition: "중간", bid: 760 },
   { keyword: "블로그 부업", pc: 4300, mobile: 17100, competition: "중간", bid: 640 },
@@ -11,6 +28,12 @@ const relatedSeeds = [
   { keyword: "스마트스토어", pc: 12600, mobile: 43800, competition: "높음", bid: 1350 },
   { keyword: "전자책 판매", pc: 2100, mobile: 8600, competition: "낮음", bid: 410 },
 ];
+
+const relatedSeeds: KeywordMetric[] = relatedSeedInputs.map((item) => ({
+  ...item,
+  total: item.pc + item.mobile,
+  mobileRate: Math.round((item.mobile / (item.pc + item.mobile)) * 100),
+}));
 
 const recentKeywords = ["부업", "배당주", "스마트스토어", "블로그 수익", "키워드 검색량"];
 
@@ -22,26 +45,52 @@ export default function KeywordTool() {
   const [keyword, setKeyword] = useState("부업");
   const [submittedKeyword, setSubmittedKeyword] = useState("부업");
   const [sort, setSort] = useState<"volume" | "competition">("volume");
+  const [data, setData] = useState<KeywordApiResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const results = useMemo(() => {
-    const normalized = submittedKeyword.trim() || "키워드";
-    const base = relatedSeeds.map((item, index) => ({
-      ...item,
-      keyword: index === 0 ? normalized : `${normalized} ${item.keyword}`,
-      total: item.pc + item.mobile,
-      mobileRate: Math.round((item.mobile / (item.pc + item.mobile)) * 100),
-    }));
-
-    return [...base].sort((a, b) => sort === "volume"
-      ? b.total - a.total
-      : a.competition.localeCompare(b.competition, "ko-KR"));
-  }, [submittedKeyword, sort]);
+  const baseResults = data?.results.length ? data.results : relatedSeeds;
+  const results = [...baseResults].sort((a, b) => sort === "volume"
+    ? b.total - a.total
+    : a.competition.localeCompare(b.competition, "ko-KR"));
 
   const primary = results[0];
   const totalVolume = results.reduce((sum, item) => sum + item.total, 0);
+  const updatedAt = data ? new Date(data.updatedAt).toLocaleString("ko-KR") : "샘플 데이터";
+
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    fetch(`/api/keywords?keyword=${encodeURIComponent(submittedKeyword)}&mode=relevant`, { signal: controller.signal })
+      .then(async (response) => {
+        const body = await response.json().catch(() => null) as KeywordApiResponse | { error?: { message?: string } } | null;
+        if (!response.ok) throw new Error(body && "error" in body ? body.error?.message : "키워드 데이터를 불러오지 못했습니다.");
+        return body as KeywordApiResponse;
+      })
+      .then((body) => {
+        if (!cancelled) setData(body);
+      })
+      .catch((fetchError: unknown) => {
+        if (!cancelled && !(fetchError instanceof DOMException && fetchError.name === "AbortError")) {
+          setData(null);
+          setError(fetchError instanceof Error ? fetchError.message : "키워드 데이터를 불러오지 못했습니다.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [submittedKeyword]);
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setLoading(true);
+    setError(null);
     setSubmittedKeyword(keyword.trim() || "키워드");
   }
 
@@ -71,7 +120,7 @@ export default function KeywordTool() {
         </form>
         <div className="keyword-recent" aria-label="최근 키워드">
           {recentKeywords.map((item) => (
-            <button key={item} type="button" onClick={() => { setKeyword(item); setSubmittedKeyword(item); }}>
+            <button key={item} type="button" onClick={() => { setKeyword(item); setLoading(true); setError(null); setSubmittedKeyword(item); }}>
               {item}
             </button>
           ))}
@@ -82,7 +131,7 @@ export default function KeywordTool() {
         <article>
           <span>대표 키워드</span>
           <strong>{submittedKeyword}</strong>
-          <small>현재는 화면 구조용 샘플 데이터입니다.</small>
+          <small>{loading ? "조회 중" : updatedAt}</small>
         </article>
         <article>
           <span>월 총 검색량</span>
@@ -100,6 +149,7 @@ export default function KeywordTool() {
           <small>상위 {results.length}개 샘플 기준</small>
         </article>
       </section>
+      {error && <div className="keyword-alert" role="status">{error} 현재는 샘플 구조를 표시합니다.</div>}
 
       <section className="keyword-panel" id="related">
         <div className="keyword-panel-head">
@@ -124,7 +174,7 @@ export default function KeywordTool() {
                 <th>합계</th>
                 <th>모바일</th>
                 <th>경쟁도</th>
-                <th>예상 CPC</th>
+                <th>광고 깊이</th>
               </tr>
             </thead>
             <tbody>
@@ -136,7 +186,7 @@ export default function KeywordTool() {
                   <td>{formatNumber(item.total)}</td>
                   <td>{item.mobileRate}%</td>
                   <td>{item.competition}</td>
-                  <td>{formatNumber(item.bid)}원</td>
+                  <td>{item.bid === null ? "-" : formatNumber(item.bid)}</td>
                 </tr>
               ))}
             </tbody>
