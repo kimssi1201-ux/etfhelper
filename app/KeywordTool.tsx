@@ -101,7 +101,7 @@ export default function KeywordTool() {
         <nav aria-label="상단 메뉴">
           <a href="#search">검색</a>
           <a href="#related">연관 키워드</a>
-          <a href="#setup">API 설정</a>
+          <a href="#trend">추이</a>
         </nav>
       </header>
 
@@ -203,13 +203,13 @@ export default function KeywordTool() {
             ))}
           </div>
         </article>
-        <article id="setup">
-          <h2>API 연결</h2>
-          <p>실제 검색량은 네이버 검색광고 API 환경변수를 서버에 설정한 뒤 연결합니다. 키는 화면이나 클라이언트 코드에 노출하지 않습니다.</p>
+        <article id="trend">
+          <h2>활용 메모</h2>
+          <p>검색량이 높고 모바일 비중이 큰 키워드는 모바일 콘텐츠와 광고 소재를 먼저 검토하기 좋습니다. 경쟁도가 높은 키워드는 세부 조합어를 함께 비교하세요.</p>
           <dl>
-            <div><dt>NAVER_SEARCHAD_API_KEY</dt><dd>서버 전용</dd></div>
-            <div><dt>NAVER_SEARCHAD_SECRET_KEY</dt><dd>서버 전용</dd></div>
-            <div><dt>NAVER_SEARCHAD_CUSTOMER_ID</dt><dd>서버 전용</dd></div>
+            <div><dt>검색량</dt><dd>수요 확인</dd></div>
+            <div><dt>모바일 비중</dt><dd>콘텐츠 형식 판단</dd></div>
+            <div><dt>경쟁도</dt><dd>진입 난이도 참고</dd></div>
           </dl>
         </article>
       </section>
