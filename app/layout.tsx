@@ -33,9 +33,9 @@ async function getRequestOrigin() {
 
 export async function generateMetadata(): Promise<Metadata> {
   const origin = await getRequestOrigin();
-  const title = "모아봄 | 여러 커뮤니티 인기글을 한눈에";
+  const title = "키워드랩 | 포털 키워드 검색량 도구";
   const description =
-    "여러 커뮤니티의 공개 게시글 제목과 메타데이터, 직접 작성한 짧은 요약을 한곳에서 확인하고 원문으로 이동하세요.";
+    "키워드 검색량, 모바일 비중, 연관 키워드와 경쟁도를 한 화면에서 확인하는 포털 키워드 분석 도구입니다.";
 
   return {
     metadataBase: origin,
@@ -44,13 +44,13 @@ export async function generateMetadata(): Promise<Metadata> {
       template: "%s | 모아봄",
     },
     description,
-    applicationName: "모아봄",
+    applicationName: "키워드랩",
     openGraph: {
       title,
       description,
       type: "website",
       locale: "ko_KR",
-      siteName: "모아봄",
+      siteName: "키워드랩",
     },
     twitter: {
       card: "summary_large_image",

@@ -1,5 +1,5 @@
-import CommunityPortal from "./CommunityPortal";
+import KeywordTool from "./KeywordTool";
 
 export default function Home() {
-  return <CommunityPortal />;
+  return <KeywordTool />;
 }
