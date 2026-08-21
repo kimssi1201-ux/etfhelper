@@ -74,7 +74,7 @@ export default function KeywordTool() {
   const baseResults = data?.results.length ? data.results : relatedSeeds;
   const results = [...baseResults].sort((a, b) => sort === "volume"
     ? b.total - a.total
-    : a.competition.localeCompare(b.competition, "ko-KR"));
+    : competitionScore(a.competition) - competitionScore(b.competition));
 
   const primary = results[0];
   const totalVolume = results.reduce((sum, item) => sum + item.total, 0);
@@ -85,6 +85,7 @@ export default function KeywordTool() {
   const adEfficiency = primary.competition === "낮음" ? "좋음" : primary.competition === "중간" ? "보통" : "주의";
   const opportunity = score >= 68 ? "우선 검토" : score >= 52 ? "세부 키워드 검토" : "롱테일 권장";
   const topRelated = results.slice(0, 8);
+  const maxRelatedVolume = Math.max(...topRelated.map((item) => item.total), 1);
 
   useEffect(() => {
     let cancelled = false;
@@ -157,10 +158,10 @@ export default function KeywordTool() {
       </section>
 
       <section className="keyword-tabs" aria-label="분석 메뉴">
-        <a className="active" href="#overview">키워드 분석</a>
+        <a className="active" href="#overview">기본 정보</a>
         <a href="#related">연관 키워드</a>
-        <a href="#trend">상황 분석</a>
-        <a href="#related">다운로드</a>
+        <a href="#distribution">검색량 분포</a>
+        <a href="#trend">성향 분석</a>
       </section>
 
       <section className="keyword-summary" id="overview" aria-label="검색량 요약">
@@ -237,6 +238,7 @@ export default function KeywordTool() {
                 <th>모바일</th>
                 <th>경쟁도</th>
                 <th>광고 깊이</th>
+                <th>기회</th>
               </tr>
             </thead>
             <tbody>
@@ -249,6 +251,7 @@ export default function KeywordTool() {
                   <td>{item.mobileRate}%</td>
                   <td>{item.competition}</td>
                   <td>{item.bid === null ? "-" : formatNumber(item.bid)}</td>
+                  <td>{keywordScore(item)}점</td>
                 </tr>
               ))}
             </tbody>
@@ -257,11 +260,17 @@ export default function KeywordTool() {
       </section>
 
       <section className="keyword-grid">
-        <article>
-          <h2>월별 추이</h2>
-          <div className="keyword-chart" aria-label="월별 검색량 샘플 차트">
-            {[34, 48, 42, 57, 63, 71, 68, 82, 76, 88, 91, 100].map((height, index) => (
-              <span key={index} style={{ height: `${height}%` }} />
+        <article id="distribution">
+          <h2>검색량 분포</h2>
+          <div className="keyword-chart keyword-distribution" aria-label="관련 키워드 검색량 분포">
+            {topRelated.map((item) => (
+              <span
+                key={item.keyword}
+                title={`${item.keyword} ${formatNumber(item.total)}회`}
+                style={{ height: `${Math.max(12, Math.round((item.total / maxRelatedVolume) * 100))}%` }}
+              >
+                <b>{item.keyword}</b>
+              </span>
             ))}
           </div>
         </article>
