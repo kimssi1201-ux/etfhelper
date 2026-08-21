@@ -68,6 +68,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
+      <head>
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5751319666030430"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className={`${geistSans.variable} ${ibmPlexMono.variable} antialiased`}>
         {children}
       </body>
