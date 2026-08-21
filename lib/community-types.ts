@@ -24,6 +24,7 @@ export type CommunityPost = {
   publishedAt: string;
   collectedAt: string;
   status: PostStatus;
+  contentPreview?: string;
   sample?: boolean;
 };
 

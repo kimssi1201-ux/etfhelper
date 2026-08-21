@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCommunity, getPost, samplePosts } from "@/lib/community-data";
-import { collectLiveCommunity } from "@/lib/community-live";
+import { collectLivePostDetail } from "@/lib/community-live";
 import type { CommunityPost } from "@/lib/community-types";
 
 type PostPageParams = {
@@ -23,8 +23,7 @@ async function findPost(community: string, externalId: string): Promise<Communit
   const savedPost = getPost(community, externalId);
   if (savedPost) return savedPost;
 
-  const livePosts = await collectLiveCommunity(community).catch(() => []);
-  return livePosts.find((post) => post.externalId === externalId && post.status === "published");
+  return collectLivePostDetail(community, externalId).catch(() => undefined);
 }
 
 export async function generateMetadata({ params }: { params: Promise<PostPageParams> }): Promise<Metadata> {
@@ -77,8 +76,8 @@ export default async function PostPage({ params }: { params: Promise<PostPagePar
           {source.name} 원문링크 <span>{post.originalUrl}</span>
         </a>
         <div className="post-summary">
-          <strong>모아봄 요약</strong>
-          <p>{post.summary}</p>
+          <strong>{post.contentPreview ? "본문 미리보기" : "모아봄 요약"}</strong>
+          <p>{post.contentPreview ?? post.summary}</p>
         </div>
         <div className="post-policy">
           원문 전체와 댓글은 저장하거나 복제하지 않습니다. 정확한 내용은 출처의 원문에서 확인해 주세요.

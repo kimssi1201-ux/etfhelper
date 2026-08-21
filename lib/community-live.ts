@@ -7,7 +7,20 @@ const sourceUrls: Record<string, string> = {
 };
 
 function clean(value: string) {
-  return value.replace(/<[^>]+>/g, " ").replace(/&nbsp;|&#x27;|&#39;/g, " ").replace(/&amp;/g, "&").replace(/&#x2F;|\//g, "/").replace(/\s+/g, " ").trim();
+  return value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|h[1-6])>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;|&#x27;|&#39;/g, " ")
+    .replace(/&quot;/g, "\"")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/&#x2F;|\//g, "/")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n\s+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function absolute(href: string, base: string) {
@@ -33,6 +46,37 @@ function extract(html: string, slug: string, base: string): CommunityPost[] {
     if (posts.length >= 30) break;
   }
   return posts;
+}
+
+function extractPreview(html: string, title: string) {
+  const text = clean(html
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<(script|style|noscript|svg|iframe|form|header|footer|nav)\b[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<img\b[^>]*>/gi, " "));
+  const blocked = /로그인|회원가입|댓글|추천|조회|신고|스크랩|공유|이전글|다음글|copyright|all rights reserved/i;
+  const titleText = title.replace(/\s+/g, " ").trim();
+  const lines = text
+    .split(/\n| {2,}/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter((line) => line.length >= 12 && line !== titleText && !blocked.test(line));
+  const unique = [...new Set(lines)];
+  const preview = unique.join("\n\n").slice(0, 520).trim();
+  return preview.length >= 30 ? preview : null;
+}
+
+export async function collectLivePostDetail(slug: string, externalId: string): Promise<CommunityPost | undefined> {
+  const post = (await collectLiveCommunity(slug)).find((item) => item.externalId === externalId);
+  if (!post) return undefined;
+
+  const response = await fetch(post.originalUrl, {
+    headers: { "user-agent": "MoaBom/1.0 (+https://fastincome.kr; short preview only)" },
+    signal: AbortSignal.timeout(8000),
+    next: { revalidate: 300 },
+  }).catch(() => null);
+  if (!response?.ok) return post;
+
+  const preview = extractPreview(await response.text(), post.title);
+  return preview ? { ...post, contentPreview: preview, summary: preview } : post;
 }
 
 export async function collectLiveCommunity(slug: string): Promise<CommunityPost[]> {
