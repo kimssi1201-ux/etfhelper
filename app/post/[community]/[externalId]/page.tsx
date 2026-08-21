@@ -73,6 +73,9 @@ export default async function PostPage({ params }: { params: Promise<PostPagePar
           <span>추천 {post.likes === null ? "-" : post.likes.toLocaleString("ko-KR")}</span>
           <span>댓글 {post.commentsCount === null ? "-" : post.commentsCount.toLocaleString("ko-KR")}</span>
         </div>
+        <a className="post-source-link" href={post.originalUrl} target="_blank" rel="noreferrer noopener">
+          {source.name} 원문링크 <span>{post.originalUrl}</span>
+        </a>
         <div className="post-summary">
           <strong>모아봄 요약</strong>
           <p>{post.summary}</p>
