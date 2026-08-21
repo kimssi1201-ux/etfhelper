@@ -287,8 +287,16 @@ export default function KeywordTool() {
       </section>
 
       <footer className="keyword-footer">
-        <span>키워드랩</span>
-        <p>검색량 데이터는 광고 API 제공 범위와 지연 시간에 따라 달라질 수 있습니다.</p>
+        <div>
+          <span>키워드랩</span>
+          <p>검색량 데이터는 광고 API 제공 범위와 지연 시간에 따라 달라질 수 있습니다.</p>
+        </div>
+        <nav aria-label="사이트 정책">
+          <Link href="/about">소개</Link>
+          <Link href="/privacy">개인정보처리방침</Link>
+          <Link href="/terms">이용약관</Link>
+          <Link href="/contact">문의</Link>
+        </nav>
       </footer>
     </main>
   );

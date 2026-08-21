@@ -1169,7 +1169,9 @@ button:disabled {
 }
 
 .keyword-footer {
-  display: block;
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
   padding: 22px 16px 44px;
   border-top: 1px solid var(--rule);
   color: var(--ink-3);
@@ -1183,6 +1185,98 @@ button:disabled {
 
 .keyword-footer p {
   margin: 6px 0 0;
+}
+
+.keyword-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  justify-content: flex-end;
+}
+
+.keyword-footer a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink-2);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.legal-shell {
+  min-height: 100vh;
+  padding: 22px 16px 56px;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Pretendard Variable", var(--font-geist-sans), "Noto Sans KR", Arial, sans-serif;
+}
+
+.legal-card {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 18px;
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  background: var(--card);
+}
+
+.legal-back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.legal-eyebrow {
+  margin: 20px 0 8px;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .1em;
+}
+
+.legal-card h1 {
+  margin: 0 0 18px;
+  color: var(--ink);
+  font-size: clamp(30px, 8vw, 46px);
+  line-height: 1.08;
+  letter-spacing: -.04em;
+}
+
+.legal-card h2 {
+  margin: 28px 0 10px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule);
+  color: var(--ink);
+  font-size: 18px;
+  letter-spacing: -.03em;
+}
+
+.legal-card p,
+.legal-card li {
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.legal-card ul {
+  margin: 10px 0 0;
+  padding-left: 20px;
+}
+
+.legal-card a {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.legal-note {
+  padding: 12px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--bg);
 }
 
 @media (min-width: 760px) {
@@ -1226,5 +1320,14 @@ button:disabled {
 
   .keyword-row-volume {
     min-width: 52px;
+  }
+
+  .keyword-footer {
+    display: block;
+  }
+
+  .keyword-footer nav {
+    justify-content: flex-start;
+    margin-top: 12px;
   }
 }
