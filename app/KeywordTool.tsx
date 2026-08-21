@@ -41,6 +41,28 @@ function formatNumber(value: number) {
   return value.toLocaleString("ko-KR");
 }
 
+function competitionScore(value: string) {
+  if (value === "낮음") return 24;
+  if (value === "중간") return 52;
+  if (value === "높음") return 82;
+  return 45;
+}
+
+function keywordScore(item: KeywordMetric) {
+  const volume = Math.min(42, Math.round(Math.log10(Math.max(item.total, 10)) * 10));
+  const mobile = Math.min(18, Math.round(item.mobileRate / 6));
+  const competition = 40 - Math.round(competitionScore(item.competition) / 3);
+  return Math.max(1, Math.min(100, volume + mobile + competition));
+}
+
+function keywordGrade(score: number) {
+  if (score >= 82) return "A";
+  if (score >= 68) return "B";
+  if (score >= 52) return "C";
+  if (score >= 36) return "D";
+  return "E";
+}
+
 export default function KeywordTool() {
   const [keyword, setKeyword] = useState("부업");
   const [submittedKeyword, setSubmittedKeyword] = useState("부업");
@@ -57,6 +79,12 @@ export default function KeywordTool() {
   const primary = results[0];
   const totalVolume = results.reduce((sum, item) => sum + item.total, 0);
   const updatedAt = data ? new Date(data.updatedAt).toLocaleString("ko-KR") : "샘플 데이터";
+  const score = keywordScore(primary);
+  const grade = keywordGrade(score);
+  const forecast = Math.round(primary.total * 1.08);
+  const adEfficiency = primary.competition === "낮음" ? "좋음" : primary.competition === "중간" ? "보통" : "주의";
+  const opportunity = score >= 68 ? "우선 검토" : score >= 52 ? "세부 키워드 검토" : "롱테일 권장";
+  const topRelated = results.slice(0, 8);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,14 +128,15 @@ export default function KeywordTool() {
         <Link href="/" className="keyword-logo">키워드랩</Link>
         <nav aria-label="상단 메뉴">
           <a href="#search">검색</a>
+          <a href="#overview">분석</a>
           <a href="#related">연관 키워드</a>
           <a href="#trend">추이</a>
         </nav>
       </header>
 
       <section className="keyword-hero" id="search">
-        <p>포털 키워드 검색량 도구</p>
-        <h1>키워드 검색량을 빠르게 확인합니다</h1>
+        <p>NAVER KEYWORD DASHBOARD</p>
+        <h1>검색량과 경쟁도를 한 화면에서 봅니다</h1>
         <form onSubmit={submit} className="keyword-search">
           <label htmlFor="keyword">키워드</label>
           <input
@@ -127,35 +156,68 @@ export default function KeywordTool() {
         </div>
       </section>
 
-      <section className="keyword-summary" aria-label="검색량 요약">
+      <section className="keyword-tabs" aria-label="분석 메뉴">
+        <a className="active" href="#overview">키워드 분석</a>
+        <a href="#related">연관 키워드</a>
+        <a href="#trend">상황 분석</a>
+        <a href="#related">다운로드</a>
+      </section>
+
+      <section className="keyword-summary" id="overview" aria-label="검색량 요약">
         <article>
-          <span>대표 키워드</span>
-          <strong>{submittedKeyword}</strong>
-          <small>{loading ? "조회 중" : updatedAt}</small>
+          <span>키워드 등급</span>
+          <strong>{grade}</strong>
+          <small>{score}점 · {opportunity}</small>
         </article>
         <article>
-          <span>월 총 검색량</span>
+          <span>월간 검색량</span>
           <strong>{formatNumber(primary.total)}</strong>
           <small>PC {formatNumber(primary.pc)} · 모바일 {formatNumber(primary.mobile)}</small>
         </article>
         <article>
-          <span>모바일 비중</span>
-          <strong>{primary.mobileRate}%</strong>
-          <small>모바일 중심 콘텐츠 여부 판단</small>
+          <span>검색 광고 효율</span>
+          <strong>{adEfficiency}</strong>
+          <small>경쟁도 {primary.competition} · 광고 깊이 {primary.bid ?? "-"}</small>
         </article>
         <article>
-          <span>연관 키워드 합계</span>
-          <strong>{formatNumber(totalVolume)}</strong>
-          <small>상위 {results.length}개 샘플 기준</small>
+          <span>참고 예상치</span>
+          <strong>{formatNumber(forecast)}</strong>
+          <small>{loading ? "조회 중" : `내부 계산 · ${updatedAt}`}</small>
         </article>
       </section>
       {error && <div className="keyword-alert" role="status">{error} 현재는 샘플 구조를 표시합니다.</div>}
 
+      <section className="keyword-metric-grid" aria-label="상세 지표">
+        <article className="metric-card">
+          <div className="metric-head"><h2>월간 검색량</h2><span>Total</span></div>
+          <div className="metric-split">
+            <div><b>{formatNumber(primary.pc)}</b><small>PC</small></div>
+            <div><b>{formatNumber(primary.mobile)}</b><small>Mobile</small></div>
+            <div><b>{formatNumber(primary.total)}</b><small>Total</small></div>
+          </div>
+        </article>
+        <article className="metric-card">
+          <div className="metric-head"><h2>기회 점수</h2><span>{opportunity}</span></div>
+          <div className="score-ring"><strong>{score}</strong><small>/ 100</small></div>
+          <p>검색량, 모바일 비중, 경쟁도를 합산한 내부 참고 지표입니다.</p>
+        </article>
+        <article className="metric-card">
+          <div className="metric-head"><h2>모바일 성향</h2><span>{primary.mobileRate}%</span></div>
+          <div className="horizontal-meter"><span style={{ width: `${primary.mobileRate}%` }} /></div>
+          <p>모바일 검색 비중이 높을수록 짧은 제목과 빠른 정보 구조가 유리합니다.</p>
+        </article>
+        <article className="metric-card">
+          <div className="metric-head"><h2>연관 키워드</h2><span>{results.length}개</span></div>
+          <strong className="metric-total">{formatNumber(totalVolume)}</strong>
+          <p>현재 검색어가 포함된 관련 후보만 우선 표시합니다.</p>
+        </article>
+      </section>
+
       <section className="keyword-panel" id="related">
         <div className="keyword-panel-head">
           <div>
-            <p>연관 키워드</p>
-            <h2>{submittedKeyword} 관련 후보</h2>
+            <p>RELATION KEYWORDS</p>
+            <h2>{submittedKeyword} 관련 키워드</h2>
           </div>
           <div className="keyword-actions">
             <button type="button" className={sort === "volume" ? "active" : ""} onClick={() => setSort("volume")}>검색량순</button>
@@ -204,12 +266,12 @@ export default function KeywordTool() {
           </div>
         </article>
         <article id="trend">
-          <h2>활용 메모</h2>
-          <p>검색량이 높고 모바일 비중이 큰 키워드는 모바일 콘텐츠와 광고 소재를 먼저 검토하기 좋습니다. 경쟁도가 높은 키워드는 세부 조합어를 함께 비교하세요.</p>
+          <h2>상황 분석</h2>
+          <p>{submittedKeyword} 키워드는 현재 {formatNumber(primary.total)}회 규모의 월간 검색량을 보입니다. 경쟁도는 {primary.competition}이며, {opportunity} 대상으로 분류했습니다.</p>
           <dl>
-            <div><dt>검색량</dt><dd>수요 확인</dd></div>
-            <div><dt>모바일 비중</dt><dd>콘텐츠 형식 판단</dd></div>
-            <div><dt>경쟁도</dt><dd>진입 난이도 참고</dd></div>
+            <div><dt>대표 키워드</dt><dd>{primary.keyword}</dd></div>
+            <div><dt>모바일 비중</dt><dd>{primary.mobileRate}%</dd></div>
+            <div><dt>추천 확장어</dt><dd>{topRelated.slice(1, 4).map((item) => item.keyword).join(", ") || "-"}</dd></div>
           </dl>
         </article>
       </section>
