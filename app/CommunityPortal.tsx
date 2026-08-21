@@ -9,12 +9,12 @@ const timeFormat = new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-
 
 function HotPost({ post, rank }: { post: ReturnType<typeof listPosts>["posts"][number]; rank: number }) {
   const time = timeFormat.format(new Date(post.publishedAt)).replaceAll(".", "").replace(" ", "/");
-  const path = `/post/${post.communitySlug}/${encodeURIComponent(post.externalId)}`;
+  const path = post.originalUrl;
   const openPost = (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     window.location.assign(path);
   };
-  return <a className="hot-post-row" href={path} onClick={openPost}>
+  return <a className="hot-post-row" href={path} onClick={openPost} rel="noreferrer">
     <span className="hot-rank">{String(rank).padStart(2, "0")}</span>
     <div className="hot-post-body">
       <span className="hot-post-title">{post.title} <b>+{post.likes ?? 0}</b> <small>[{post.commentsCount ?? 0}]</small></span>
