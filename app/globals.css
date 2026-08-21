@@ -120,14 +120,14 @@ button:disabled {
 .hot-sort button { border: 0; padding: 0 8px; background: transparent; color: #d8d9e3; font-size: 11px; }
 .hot-sort button.active { background: #ee8842; color: #fff; font-weight: 900; }
 .hot-list { max-width: 760px; margin: 0 auto; background: #fff; }
-.hot-post-row { display: flex; gap: 9px; min-height: 94px; padding: 14px 12px 12px; border-bottom: 1px solid #c7c7c7; }
+.hot-post-row { display: flex; gap: 9px; min-height: 94px; padding: 14px 12px 12px; border-bottom: 1px solid #c7c7c7; color: inherit; text-decoration: none; }
 .hot-rank { flex: 0 0 24px; padding-top: 3px; color: #a4adb4; font-size: 11px; font-weight: 900; }
 .hot-post-body { min-width: 0; flex: 1; }
 .hot-post-title { display: block; overflow: hidden; color: #2b2d32; font-size: 16px; line-height: 1.45; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
 .hot-post-title b { color: #ee6739; font-size: 11px; font-weight: 700; }
 .hot-post-title small { color: #444; font-size: 11px; }
 .hot-post-meta { display: flex; gap: 6px; margin-top: 8px; color: #858b91; font-size: 11px; white-space: nowrap; }
-.hot-post-meta a { color: #3c7eb3; font-weight: 800; text-decoration: none; }
+.hot-post-source { color: #3c7eb3; font-weight: 800; }
 .hot-empty { padding: 70px 20px; color: #888; text-align: center; }
 .hot-notice { max-width: 760px; margin: 0 auto; padding: 18px 14px 64px; background: #f4f4f4; color: #80868d; font-size: 11px; }
 .hot-notice strong { color: #40464b; }

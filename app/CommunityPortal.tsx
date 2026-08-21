@@ -9,13 +9,18 @@ const timeFormat = new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-
 
 function HotPost({ post, rank }: { post: ReturnType<typeof listPosts>["posts"][number]; rank: number }) {
   const time = timeFormat.format(new Date(post.publishedAt)).replaceAll(".", "").replace(" ", "/");
-  return <article className="hot-post-row">
+  const path = `/post/${post.communitySlug}/${encodeURIComponent(post.externalId)}`;
+  const openPost = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    window.location.assign(path);
+  };
+  return <a className="hot-post-row" href={path} onClick={openPost}>
     <span className="hot-rank">{String(rank).padStart(2, "0")}</span>
     <div className="hot-post-body">
-      <Link href={`/post/${post.communitySlug}/${post.externalId}`} className="hot-post-title">{post.title} <b>+{post.likes ?? 0}</b> <small>[{post.commentsCount ?? 0}]</small></Link>
-      <div className="hot-post-meta"><span>{post.authorName ?? "익명"}</span><span>{time}</span><span>조회 {post.views ?? 0}</span><Link href={`/community/${post.communitySlug}`}>{post.communityName}</Link></div>
+      <span className="hot-post-title">{post.title} <b>+{post.likes ?? 0}</b> <small>[{post.commentsCount ?? 0}]</small></span>
+      <div className="hot-post-meta"><span>{post.authorName ?? "익명"}</span><span>{time}</span><span>조회 {post.views ?? 0}</span><span className="hot-post-source">{post.communityName}</span></div>
     </div>
-  </article>;
+  </a>;
 }
 
 export default function CommunityPortal({ initialCommunity }: { initialCommunity?: string }) {
