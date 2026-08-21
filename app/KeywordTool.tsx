@@ -56,11 +56,35 @@ function keywordScore(item: KeywordMetric) {
 }
 
 function keywordGrade(score: number) {
-  if (score >= 82) return "A";
-  if (score >= 68) return "B";
-  if (score >= 52) return "C";
-  if (score >= 36) return "D";
-  return "E";
+  if (score >= 82) return "S";
+  if (score >= 68) return "A";
+  if (score >= 52) return "B";
+  if (score >= 36) return "C";
+  return "D";
+}
+
+function gradeStep(grade: string) {
+  return ({ S: 1, A: 2, B: 3, C: 4, D: 5 } as Record<string, number>)[grade] ?? 5;
+}
+
+function gradeTone(grade: string) {
+  if (grade === "S" || grade === "A") return "easy";
+  if (grade === "B" || grade === "C") return "mid";
+  return "hard";
+}
+
+function gradeMessage(grade: string) {
+  if (grade === "S") return "매우 수월함";
+  if (grade === "A") return "진입 여지 있음";
+  if (grade === "B") return "경쟁 보통";
+  if (grade === "C") return "경쟁이 다소 치열함";
+  return "경쟁 강함";
+}
+
+function competitionTone(value: string) {
+  if (value === "낮음") return "easy";
+  if (value === "중간") return "mid";
+  return "hard";
 }
 
 export default function KeywordTool() {
@@ -77,10 +101,11 @@ export default function KeywordTool() {
     : competitionScore(a.competition) - competitionScore(b.competition));
 
   const primary = results[0];
-  const totalVolume = results.reduce((sum, item) => sum + item.total, 0);
   const updatedAt = data ? new Date(data.updatedAt).toLocaleString("ko-KR") : "샘플 데이터";
   const score = keywordScore(primary);
   const grade = keywordGrade(score);
+  const gradeLevel = gradeStep(grade);
+  const gradeToneName = gradeTone(grade);
   const forecast = Math.round(primary.total * 1.08);
   const adEfficiency = primary.competition === "낮음" ? "좋음" : primary.competition === "중간" ? "보통" : "주의";
   const opportunity = score >= 68 ? "우선 검토" : score >= 52 ? "세부 키워드 검토" : "롱테일 권장";
@@ -125,19 +150,11 @@ export default function KeywordTool() {
 
   return (
     <main className="keyword-shell">
-      <header className="keyword-header">
-        <Link href="/" className="keyword-logo">키워드랩</Link>
-        <nav aria-label="상단 메뉴">
-          <a href="#search">검색</a>
-          <a href="#overview">분석</a>
-          <a href="#related">연관 키워드</a>
-          <a href="#trend">추이</a>
-        </nav>
-      </header>
-
-      <section className="keyword-hero" id="search">
-        <p>NAVER KEYWORD DASHBOARD</p>
-        <h1>검색량과 경쟁도를 한 화면에서 봅니다</h1>
+      <header className="keyword-header" id="search">
+        <div className="keyword-header-top">
+          <Link href="/" className="keyword-logo">키워드랩</Link>
+          <span>NAVER KEYWORD</span>
+        </div>
         <form onSubmit={submit} className="keyword-search">
           <label htmlFor="keyword">키워드</label>
           <input
@@ -155,64 +172,61 @@ export default function KeywordTool() {
             </button>
           ))}
         </div>
-      </section>
+      </header>
 
-      <section className="keyword-tabs" aria-label="분석 메뉴">
-        <a className="active" href="#overview">기본 정보</a>
-        <a href="#related">연관 키워드</a>
-        <a href="#distribution">검색량 분포</a>
-        <a href="#trend">성향 분석</a>
-      </section>
+      <div className="keyword-tabs" role="tablist" aria-label="분석 메뉴">
+        <a className="active" href="#overview" role="tab" aria-selected="true">기본 정보</a>
+        <a href="#related" role="tab" aria-selected="false">연관 키워드</a>
+        <a href="#distribution" role="tab" aria-selected="false">검색량 분포</a>
+        <a href="#trend" role="tab" aria-selected="false">성향 분석</a>
+      </div>
 
       <section className="keyword-summary" id="overview" aria-label="검색량 요약">
-        <article>
-          <span>키워드 등급</span>
-          <strong>{grade}</strong>
-          <small>{score}점 · {opportunity}</small>
-        </article>
-        <article>
+        <article className="metric-card metric-card-wide">
           <span>월간 검색량</span>
-          <strong>{formatNumber(primary.total)}</strong>
+          <strong className="metric-number">{formatNumber(primary.total)}</strong>
           <small>PC {formatNumber(primary.pc)} · 모바일 {formatNumber(primary.mobile)}</small>
+          <div className="volume-ratio" aria-label={`모바일 ${primary.mobileRate}%, PC ${100 - primary.mobileRate}%`}>
+            <span style={{ width: `${primary.mobileRate}%` }} />
+          </div>
+          <div className="volume-legend">
+            <span>Mobile {formatNumber(primary.mobile)}</span>
+            <span>PC {formatNumber(primary.pc)}</span>
+          </div>
         </article>
-        <article>
+        <article className={`metric-card grade-card grade-${gradeToneName}`}>
+          <div className="grade-head">
+            <span>키워드 등급</span>
+            <b>{grade} · {gradeMessage(grade)}</b>
+          </div>
+          <div
+            className="grade-segments"
+            role="img"
+            aria-label={`5단계 중 ${gradeLevel}단계, ${grade}등급`}
+          >
+            {[1, 2, 3, 4, 5].map((step) => (
+              <i key={step} className={step <= gradeLevel ? "active" : ""} />
+            ))}
+          </div>
+          <div className="grade-labels" aria-hidden="true">
+            <span>S 쉬움</span><span>A</span><span>B</span><span>C</span><span>D 어려움</span>
+          </div>
+        </article>
+        <article className="metric-card">
           <span>검색 광고 효율</span>
           <strong>{adEfficiency}</strong>
-          <small>경쟁도 {primary.competition} · 광고 깊이 {primary.bid ?? "-"}</small>
+          <small>
+            <em className={`competition-pill ${competitionTone(primary.competition)}`}>{primary.competition}</em>
+            광고 깊이 {primary.bid ?? "-"}
+          </small>
         </article>
-        <article>
+        <article className="metric-card">
           <span>참고 예상치</span>
-          <strong>{formatNumber(forecast)}</strong>
+          <strong className="metric-number">{formatNumber(forecast)}</strong>
           <small>{loading ? "조회 중" : `내부 계산 · ${updatedAt}`}</small>
         </article>
       </section>
       {error && <div className="keyword-alert" role="status">{error} 현재는 샘플 구조를 표시합니다.</div>}
-
-      <section className="keyword-metric-grid" aria-label="상세 지표">
-        <article className="metric-card">
-          <div className="metric-head"><h2>월간 검색량</h2><span>Total</span></div>
-          <div className="metric-split">
-            <div><b>{formatNumber(primary.pc)}</b><small>PC</small></div>
-            <div><b>{formatNumber(primary.mobile)}</b><small>Mobile</small></div>
-            <div><b>{formatNumber(primary.total)}</b><small>Total</small></div>
-          </div>
-        </article>
-        <article className="metric-card">
-          <div className="metric-head"><h2>기회 점수</h2><span>{opportunity}</span></div>
-          <div className="score-ring"><strong>{score}</strong><small>/ 100</small></div>
-          <p>검색량, 모바일 비중, 경쟁도를 합산한 내부 참고 지표입니다.</p>
-        </article>
-        <article className="metric-card">
-          <div className="metric-head"><h2>모바일 성향</h2><span>{primary.mobileRate}%</span></div>
-          <div className="horizontal-meter"><span style={{ width: `${primary.mobileRate}%` }} /></div>
-          <p>모바일 검색 비중이 높을수록 짧은 제목과 빠른 정보 구조가 유리합니다.</p>
-        </article>
-        <article className="metric-card">
-          <div className="metric-head"><h2>연관 키워드</h2><span>{results.length}개</span></div>
-          <strong className="metric-total">{formatNumber(totalVolume)}</strong>
-          <p>현재 검색어가 포함된 관련 후보만 우선 표시합니다.</p>
-        </article>
-      </section>
 
       <section className="keyword-panel" id="related">
         <div className="keyword-panel-head">
@@ -228,34 +242,21 @@ export default function KeywordTool() {
         </div>
 
         <div className="keyword-table-wrap">
-          <table className="keyword-table">
-            <thead>
-              <tr>
-                <th>키워드</th>
-                <th>PC</th>
-                <th>모바일</th>
-                <th>합계</th>
-                <th>모바일</th>
-                <th>경쟁도</th>
-                <th>광고 깊이</th>
-                <th>기회</th>
-              </tr>
-            </thead>
-            <tbody>
-              {results.map((item) => (
-                <tr key={item.keyword}>
-                  <td>{item.keyword}</td>
-                  <td>{formatNumber(item.pc)}</td>
-                  <td>{formatNumber(item.mobile)}</td>
-                  <td>{formatNumber(item.total)}</td>
-                  <td>{item.mobileRate}%</td>
-                  <td>{item.competition}</td>
-                  <td>{item.bid === null ? "-" : formatNumber(item.bid)}</td>
-                  <td>{keywordScore(item)}점</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="keyword-table">
+            {results.map((item) => {
+              const itemScore = keywordScore(item);
+              const itemGrade = keywordGrade(itemScore);
+              const itemTone = gradeTone(itemGrade);
+              return (
+                <a className="keyword-row" href="#search" key={item.keyword} onClick={() => { setKeyword(item.keyword); setLoading(true); setError(null); setSubmittedKeyword(item.keyword); }}>
+                  <span className="keyword-row-name">{item.keyword}</span>
+                  <span className="keyword-row-bar" aria-hidden="true"><i style={{ width: `${Math.max(6, Math.round((item.total / maxRelatedVolume) * 100))}%` }} /></span>
+                  <span className="keyword-row-volume">{formatNumber(item.total)}</span>
+                  <span className={`keyword-row-grade ${itemTone}`}>{itemGrade}</span>
+                </a>
+              );
+            })}
+          </div>
         </div>
       </section>
 
