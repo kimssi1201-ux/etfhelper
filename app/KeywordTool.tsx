@@ -18,6 +18,23 @@ type KeywordApiResponse = {
   results: KeywordMetric[];
   updatedAt: string;
   source: "NAVER_SEARCHAD";
+  openApi?: {
+    availability: {
+      status: "available" | "config-missing" | "auth-error" | "rate-limit" | "unavailable";
+      message: string | null;
+    };
+    documentStats: {
+      blog: number | null;
+      news: number | null;
+      cafe: number | null;
+      web: number | null;
+      total: number | null;
+      saturationIndex: number | null;
+    } | null;
+    trend: Array<{ period: string; ratio: number }>;
+    updatedAt: string | null;
+    source: "NAVER_OPENAPI";
+  };
 };
 
 const relatedSeedInputs: Array<Omit<KeywordMetric, "total" | "mobileRate">> = [
@@ -116,6 +133,13 @@ export default function KeywordTool() {
   const topRelated = results.slice(0, 8);
   const risingKeywords = results.slice(0, 5);
   const maxRelatedVolume = Math.max(...topRelated.map((item) => item.total), 1);
+  const documentStats = data?.openApi?.documentStats ?? null;
+  const trend = data?.openApi?.trend ?? [];
+  const hasOpenApi = data?.openApi?.availability.status === "available";
+  const latestTrend = trend.at(-1);
+  const previousTrend = trend.at(-2);
+  const trendDelta = latestTrend && previousTrend ? Math.round((latestTrend.ratio - previousTrend.ratio) * 10) / 10 : null;
+  const trendLabel = trendDelta === null ? "데이터 없음" : trendDelta >= 0 ? `+${trendDelta}` : `${trendDelta}`;
 
   useEffect(() => {
     let cancelled = false;
@@ -237,6 +261,16 @@ export default function KeywordTool() {
           <strong className="metric-number">{formatNumber(results.length)}</strong>
           <small>{loading ? "조회 중" : `최종 갱신 · ${updatedAt}`}</small>
         </article>
+        <article className="metric-card">
+          <span>콘텐츠 문서 수</span>
+          <strong className="metric-number">{documentStats?.total === null || documentStats?.total === undefined ? "-" : formatNumber(documentStats.total)}</strong>
+          <small>{hasOpenApi ? "블로그·뉴스·카페·웹문서 합계" : "네이버 OpenAPI 연결 대기"}</small>
+        </article>
+        <article className="metric-card">
+          <span>콘텐츠 포화도</span>
+          <strong className="metric-number">{documentStats?.saturationIndex === null || documentStats?.saturationIndex === undefined ? "-" : `${documentStats.saturationIndex}%`}</strong>
+          <small>{hasOpenApi ? "문서 수 ÷ 월간 검색량 기준" : data?.openApi?.availability.message ?? "트렌드 데이터 대기"}</small>
+        </article>
       </section>
       {error && <div className="keyword-alert" role="status">{error} 현재는 샘플 구조를 표시합니다.</div>}
 
@@ -257,6 +291,8 @@ export default function KeywordTool() {
           <div><span>낮은 경쟁</span><strong>{easyCount}</strong></div>
           <div><span>높은 경쟁</span><strong>{hardCount}</strong></div>
           <div><span>모바일 평균</span><strong>{averageMobileRate}%</strong></div>
+          <div><span>트렌드</span><strong>{trendLabel}</strong></div>
+          <div><span>문서 합계</span><strong>{documentStats?.total === null || documentStats?.total === undefined ? "-" : formatNumber(documentStats.total)}</strong></div>
         </div>
       </section>
 
@@ -345,17 +381,27 @@ export default function KeywordTool() {
 
       <section className="keyword-grid">
         <article id="distribution">
-          <h2>검색량 분포</h2>
+          <h2>{trend.length > 0 ? "검색 트렌드" : "검색량 분포"}</h2>
           <div className="keyword-chart keyword-distribution" aria-label="관련 키워드 검색량 분포">
-            {topRelated.map((item) => (
-              <span
-                key={item.keyword}
-                title={`${item.keyword} ${formatNumber(item.total)}회`}
-                style={{ height: `${Math.max(12, Math.round((item.total / maxRelatedVolume) * 100))}%` }}
-              >
-                <b>{item.keyword}</b>
-              </span>
-            ))}
+            {trend.length > 0
+              ? trend.map((item) => (
+                <span
+                  key={item.period}
+                  title={`${item.period} ${item.ratio}`}
+                  style={{ height: `${Math.max(12, Math.round(item.ratio))}%` }}
+                >
+                  <b>{item.period.slice(5)}</b>
+                </span>
+              ))
+              : topRelated.map((item) => (
+                <span
+                  key={item.keyword}
+                  title={`${item.keyword} ${formatNumber(item.total)}회`}
+                  style={{ height: `${Math.max(12, Math.round((item.total / maxRelatedVolume) * 100))}%` }}
+                >
+                  <b>{item.keyword}</b>
+                </span>
+              ))}
           </div>
         </article>
         <article id="trend">
@@ -366,6 +412,8 @@ export default function KeywordTool() {
             <div><dt>모바일 비중</dt><dd>{primary.mobileRate}%</dd></div>
             <div><dt>참고 예상치</dt><dd>{formatNumber(forecast)}</dd></div>
             <div><dt>연관 총 검색량</dt><dd>{formatNumber(totalVolume)}</dd></div>
+            <div><dt>문서 수</dt><dd>{documentStats?.total === null || documentStats?.total === undefined ? "-" : formatNumber(documentStats.total)}</dd></div>
+            <div><dt>포화도</dt><dd>{documentStats?.saturationIndex === null || documentStats?.saturationIndex === undefined ? "-" : `${documentStats.saturationIndex}%`}</dd></div>
             <div><dt>추천 확장어</dt><dd>{topRelated.slice(1, 4).map((item) => item.keyword).join(", ") || "-"}</dd></div>
           </dl>
         </article>

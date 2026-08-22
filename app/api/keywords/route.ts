@@ -1,3 +1,4 @@
+import { getNaverOpenApiInsights } from "@/lib/naver-openapi";
 import { lookupNaverKeywords, NaverSearchAdError } from "@/lib/naver-searchad";
 
 const STATUS_BY_CODE: Record<NaverSearchAdError["code"], number> = {
@@ -14,11 +15,20 @@ export async function GET(request: Request) {
 
   try {
     const data = await lookupNaverKeywords(keyword);
-    return Response.json(data, {
-      headers: {
-        "cache-control": "public, max-age=3600, stale-while-revalidate=600",
+    const primary = data.results[0];
+    const openApi = await getNaverOpenApiInsights(data.keyword, primary?.total ?? 0);
+
+    return Response.json(
+      {
+        ...data,
+        openApi,
       },
-    });
+      {
+        headers: {
+          "cache-control": "public, max-age=3600, stale-while-revalidate=600",
+        },
+      },
+    );
   } catch (error) {
     if (error instanceof NaverSearchAdError) {
       return Response.json(
