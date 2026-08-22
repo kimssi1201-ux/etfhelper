@@ -101,6 +101,10 @@ export default function KeywordTool() {
     : competitionScore(a.competition) - competitionScore(b.competition));
 
   const primary = results[0];
+  const totalVolume = results.reduce((sum, item) => sum + item.total, 0);
+  const easyCount = results.filter((item) => item.competition === "낮음").length;
+  const hardCount = results.filter((item) => item.competition === "높음").length;
+  const averageMobileRate = Math.round(results.reduce((sum, item) => sum + item.mobileRate, 0) / Math.max(results.length, 1));
   const updatedAt = data ? new Date(data.updatedAt).toLocaleString("ko-KR") : "샘플 데이터";
   const score = keywordScore(primary);
   const grade = keywordGrade(score);
@@ -110,6 +114,7 @@ export default function KeywordTool() {
   const adEfficiency = primary.competition === "낮음" ? "좋음" : primary.competition === "중간" ? "보통" : "주의";
   const opportunity = score >= 68 ? "우선 검토" : score >= 52 ? "세부 키워드 검토" : "롱테일 권장";
   const topRelated = results.slice(0, 8);
+  const risingKeywords = results.slice(0, 5);
   const maxRelatedVolume = Math.max(...topRelated.map((item) => item.total), 1);
 
   useEffect(() => {
@@ -152,9 +157,15 @@ export default function KeywordTool() {
     <main className="keyword-shell">
       <header className="keyword-header" id="search">
         <div className="keyword-header-top">
-          <Link href="/" className="keyword-logo">키워드랩</Link>
-          <span>NAVER KEYWORD</span>
+          <Link href="/" className="keyword-logo"><i aria-hidden="true">K</i> 키워드랩</Link>
+          <button className="keyword-menu" type="button" aria-label="메뉴">☰</button>
         </div>
+      </header>
+
+      <section className="keyword-brief-hero">
+        <p>AI 키워드 브리핑</p>
+        <h1>AI 브리핑 키워드 대시보드</h1>
+        <span>검색량·경쟁도·연관 키워드를 모바일에서 빠르게 확인합니다.</span>
         <form onSubmit={submit} className="keyword-search">
           <label htmlFor="keyword">키워드</label>
           <input
@@ -172,13 +183,14 @@ export default function KeywordTool() {
             </button>
           ))}
         </div>
-      </header>
+      </section>
 
       <div className="keyword-tabs" role="tablist" aria-label="분석 메뉴">
-        <a className="active" href="#overview" role="tab" aria-selected="true">기본 정보</a>
-        <a href="#related" role="tab" aria-selected="false">연관 키워드</a>
-        <a href="#distribution" role="tab" aria-selected="false">검색량 분포</a>
-        <a href="#trend" role="tab" aria-selected="false">성향 분석</a>
+        <a className="active" href="#overview" role="tab" aria-selected="true">요약</a>
+        <a href="#briefing" role="tab" aria-selected="false">AI 브리핑</a>
+        <a href="#cards" role="tab" aria-selected="false">키워드 카드</a>
+        <a href="#ranking" role="tab" aria-selected="false">상승 키워드</a>
+        <a href="#related" role="tab" aria-selected="false">상세 표</a>
       </div>
 
       <section className="keyword-summary" id="overview" aria-label="검색량 요약">
@@ -221,18 +233,89 @@ export default function KeywordTool() {
           </small>
         </article>
         <article className="metric-card">
-          <span>참고 예상치</span>
-          <strong className="metric-number">{formatNumber(forecast)}</strong>
-          <small>{loading ? "조회 중" : `내부 계산 · ${updatedAt}`}</small>
+          <span>연관 키워드</span>
+          <strong className="metric-number">{formatNumber(results.length)}</strong>
+          <small>{loading ? "조회 중" : `최종 갱신 · ${updatedAt}`}</small>
         </article>
       </section>
       {error && <div className="keyword-alert" role="status">{error} 현재는 샘플 구조를 표시합니다.</div>}
 
+      <section className="keyword-ai-card" id="briefing" aria-label="AI 브리핑">
+        <div className="keyword-panel-head">
+          <div>
+            <p>AI BRIEFING</p>
+            <h2>AI 브리핑 리포트</h2>
+          </div>
+          <span>{submittedKeyword}</span>
+        </div>
+        <p>
+          <b>{submittedKeyword}</b> 키워드는 월간 {formatNumber(primary.total)}회 규모이며 모바일 비중은 {primary.mobileRate}%입니다.
+          경쟁도는 {primary.competition}이고, 현재는 <b>{opportunity}</b> 전략이 적합합니다.
+        </p>
+        <div className="keyword-ai-metrics">
+          <div><span>기회 점수</span><strong>{score}</strong></div>
+          <div><span>낮은 경쟁</span><strong>{easyCount}</strong></div>
+          <div><span>높은 경쟁</span><strong>{hardCount}</strong></div>
+          <div><span>모바일 평균</span><strong>{averageMobileRate}%</strong></div>
+        </div>
+      </section>
+
+      <section className="keyword-card-section" id="cards" aria-label="추천 키워드 카드">
+        <div className="keyword-section-title">
+          <p>추천 키워드 카드</p>
+          <h2>관련 키워드</h2>
+        </div>
+        <div className="keyword-card-grid">
+          {topRelated.map((item) => {
+            const itemScore = keywordScore(item);
+            const itemGrade = keywordGrade(itemScore);
+            const itemTone = gradeTone(itemGrade);
+            return (
+              <button
+                className="related-keyword-card"
+                key={item.keyword}
+                type="button"
+                onClick={() => { setKeyword(item.keyword); setLoading(true); setError(null); setSubmittedKeyword(item.keyword); }}
+              >
+                <span><i aria-hidden="true">K</i>{item.keyword}</span>
+                <strong>{formatNumber(item.total)}</strong>
+                <small>PC {formatNumber(item.pc)} · Mobile {formatNumber(item.mobile)}</small>
+                <em className={itemTone}>{itemGrade}</em>
+                <div className="volume-ratio" aria-hidden="true">
+                  <span style={{ width: `${item.mobileRate}%` }} />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="keyword-ranking" id="ranking" aria-label="상승 키워드">
+        <div className="keyword-section-title">
+          <p>실시간 참고</p>
+          <h2>인기 상승 키워드</h2>
+        </div>
+        <div className="ranking-list">
+          {risingKeywords.map((item, index) => (
+            <button
+              key={item.keyword}
+              type="button"
+              onClick={() => { setKeyword(item.keyword); setLoading(true); setError(null); setSubmittedKeyword(item.keyword); }}
+            >
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <b>{item.keyword}</b>
+              <em>▲ {Math.max(1, Math.round((item.total / Math.max(primary.total, 1)) * 10))}%</em>
+              <small>{formatNumber(item.total)}</small>
+            </button>
+          ))}
+        </div>
+      </section>
+
       <section className="keyword-panel" id="related">
         <div className="keyword-panel-head">
           <div>
-            <p>RELATION KEYWORDS</p>
-            <h2>{submittedKeyword} 관련 키워드</h2>
+            <p>KEYWORD DETAIL</p>
+            <h2>키워드 분석 표</h2>
           </div>
           <div className="keyword-actions">
             <button type="button" className={sort === "volume" ? "active" : ""} onClick={() => setSort("volume")}>검색량순</button>
@@ -281,6 +364,8 @@ export default function KeywordTool() {
           <dl>
             <div><dt>대표 키워드</dt><dd>{primary.keyword}</dd></div>
             <div><dt>모바일 비중</dt><dd>{primary.mobileRate}%</dd></div>
+            <div><dt>참고 예상치</dt><dd>{formatNumber(forecast)}</dd></div>
+            <div><dt>연관 총 검색량</dt><dd>{formatNumber(totalVolume)}</dd></div>
             <div><dt>추천 확장어</dt><dd>{topRelated.slice(1, 4).map((item) => item.keyword).join(", ") || "-"}</dd></div>
           </dl>
         </article>
