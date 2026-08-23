@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "vinext dev",
-    "build": "vinext build && node scripts/prepare-cloudflare-pages.mjs && node scripts/remove-build-secrets.mjs",
+    "build": "vinext build && node scripts/remove-build-secrets.mjs",
     "start": "vinext start",
     "deploy": "npm run build && wrangler deploy",
     "test": "npm run build && node --test",
