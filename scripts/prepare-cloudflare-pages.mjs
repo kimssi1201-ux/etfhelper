@@ -21,6 +21,28 @@ async function copyRequiredFile(name) {
   });
 }
 
+async function writePagesWorkerEntry() {
+  await writeFile(
+    join(pagesWorkerDirectory, "index.js"),
+    `import worker from "./server-entry.js";
+
+function isStaticAsset(pathname) {
+  return pathname.startsWith("/_next/static/");
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    if (isStaticAsset(new URL(request.url).pathname)) {
+      return env.ASSETS.fetch(request);
+    }
+
+    return worker.fetch(request, env, ctx);
+  },
+};
+`,
+  );
+}
+
 async function copyRequiredDirectory(name) {
   await cp(join(serverDirectory, name), join(pagesWorkerDirectory, name), {
     force: true,
@@ -54,9 +76,10 @@ await assertExists(join(serverDirectory, "index.js"), "Cloudflare Worker output"
 await rm(pagesWorkerDirectory, { recursive: true, force: true });
 await mkdir(pagesWorkerDirectory, { recursive: true });
 
-await cp(join(serverDirectory, "index.js"), join(pagesWorkerDirectory, "index.js"), {
+await cp(join(serverDirectory, "index.js"), join(pagesWorkerDirectory, "server-entry.js"), {
   force: true,
 });
+await writePagesWorkerEntry();
 await copyRequiredDirectory("_next");
 await copyRequiredDirectory("ssr");
 await copyRequiredFile("__vite_rsc_assets_manifest.js");

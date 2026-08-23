@@ -28,6 +28,26 @@ async function render(path, headers = {}) {
   }, { waitUntil() {}, passThroughOnException() {} });
 }
 
+async function fetchClientAsset(request) {
+  const pathname = new URL(request.url).pathname;
+  const mimeTypes = new Map([
+    [".css", "text/css; charset=utf-8"],
+    [".js", "text/javascript; charset=utf-8"],
+    [".woff2", "font/woff2"],
+    [".png", "image/png"],
+  ]);
+  const extension = pathname.match(/\.[^.]+$/)?.[0] ?? "";
+
+  try {
+    const body = await readFile(new URL(`../dist/client${pathname}`, import.meta.url));
+    return new Response(body, {
+      headers: { "content-type": mimeTypes.get(extension) ?? "application/octet-stream" },
+    });
+  } catch {
+    return new Response("Not found", { status: 404 });
+  }
+}
+
 function escapePattern(value) {
   const specialCharacters = "\\^$.*+?()[]{}|";
   return [...value].map((character) => (
@@ -73,15 +93,37 @@ test("/dl renders the keyword lab route", async () => {
 });
 
 test("Cloudflare Pages output includes the advanced-mode SSR worker", async () => {
-  const [workerSource, assetsIgnore] = await Promise.all([
+  const [workerSource, serverEntrySource, assetsIgnore] = await Promise.all([
     readFile(new URL("../dist/client/_worker.js/index.js", import.meta.url), "utf8"),
+    readFile(new URL("../dist/client/_worker.js/server-entry.js", import.meta.url), "utf8"),
     readFile(new URL("../dist/client/.assetsignore", import.meta.url), "utf8"),
   ]);
 
-  assert.match(workerSource, /export\{[\s\S]*default/);
-  assert.match(workerSource, /import\(`\.\/ssr\/index\.js`\)/);
+  assert.match(workerSource, /export default/);
+  assert.match(workerSource, /env\.ASSETS\.fetch\(request\)/);
+  assert.match(serverEntrySource, /import\(`\.\/ssr\/index\.js`\)/);
   assert.match(assetsIgnore, /^_worker\.js$/m);
   assert.match(assetsIgnore, /^_worker\.js\/\*\*$/m);
+});
+
+test("Cloudflare Pages worker serves uploaded static assets before SSR", async () => {
+  const manifest = await readFile(
+    new URL("../dist/client/_worker.js/__vite_rsc_assets_manifest.js", import.meta.url),
+    "utf8",
+  );
+  const cssPath = manifest.match(/\/_next\/static\/css\/[^"]+\.css/)?.[0];
+  assert.ok(cssPath, "server-rendered CSS asset should be discoverable");
+
+  const workerUrl = new URL("../dist/client/_worker.js/index.js", import.meta.url);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const response = await worker.fetch(new Request(`${ORIGIN}${cssPath}`), {
+    ASSETS: { fetch: fetchClientAsset },
+  }, { waitUntil() {}, passThroughOnException() {} });
+
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /^text\/css\b/i);
+  assert.match(await response.text(), /keyword-shell/);
 });
 
 test("every stock in the shared verified universe server-renders content, SEO, structured data, and disclaimer", async (t) => {
