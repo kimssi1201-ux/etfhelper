@@ -162,10 +162,10 @@ button:disabled {
 .keyword-search { display: grid; grid-template-columns: 1fr auto; gap: 8px; max-width: 780px; padding: 8px; border: 1px solid #d8d8d8; background: #fff; }
 .keyword-search label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .keyword-search input { min-width: 0; height: 48px; padding: 0 12px; border: 0; color: #111; font-size: 17px; outline: 0; }
-.keyword-search button, .keyword-recent button, .keyword-actions button { border: 1px solid #222; background: #111; color: #fff; font-weight: 800; }
+.keyword-search button, .keyword-recent a, .keyword-recent button, .keyword-actions button { border: 1px solid #222; background: #111; color: #fff; font-weight: 800; }
 .keyword-search button { min-width: 96px; padding: 0 18px; }
 .keyword-recent { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-.keyword-recent button { padding: 8px 10px; border-color: #ddd; background: #fff; color: #333; font-size: 12px; }
+.keyword-recent a, .keyword-recent button { padding: 8px 10px; border-color: #ddd; background: #fff; color: #333; font-size: 12px; text-decoration: none; }
 .keyword-summary, .keyword-panel, .keyword-grid, .keyword-footer { max-width: 1040px; margin-right: auto; margin-left: auto; }
 .keyword-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 20px 16px 10px; }
 .keyword-alert { max-width: 1008px; margin: 10px auto 0; padding: 12px 14px; border: 1px solid #d8d8d8; background: #f7f7f7; color: #333; font-size: 13px; }
@@ -274,12 +274,14 @@ button:disabled {
   font-weight: 700;
 }
 
+.keyword-recent a,
 .keyword-recent button {
   border-color: #d2d2d2;
   border-radius: 999px;
   background: #fff;
 }
 
+.keyword-recent a:hover,
 .keyword-recent button:hover {
   border-color: #111;
 }
@@ -731,7 +733,10 @@ button:disabled {
   display: none;
 }
 
+.keyword-recent a,
 .keyword-recent button {
+  display: inline-flex;
+  align-items: center;
   min-height: 44px;
   padding: 6px 12px;
   border: 1px solid var(--rule-2);
@@ -740,6 +745,7 @@ button:disabled {
   color: var(--ink-2);
   font-size: 13px;
   font-weight: 600;
+  text-decoration: none;
   white-space: nowrap;
 }
 
@@ -1434,6 +1440,7 @@ button:disabled {
   margin-top: 10px;
 }
 
+.keyword-recent a,
 .keyword-recent button {
   min-height: 34px;
   border-color: #e7ebef;
@@ -1881,6 +1888,32 @@ button:disabled {
   font-size: 13px;
   font-weight: 700;
   text-align: center;
+}
+
+.keyword-empty p {
+  margin: 0;
+}
+
+.keyword-empty-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.keyword-empty-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid #dfe7e2;
+  border-radius: 999px;
+  background: #fff;
+  color: #0b8b50;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
 }
 
 .keyword-table-footer {

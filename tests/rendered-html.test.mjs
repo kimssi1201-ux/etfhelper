@@ -68,6 +68,57 @@ function displayName(stock) {
     : `${stock.nameKo}(${stock.symbol})`;
 }
 
+function htmlTitle(html) {
+  return html.match(/<title>([\s\S]*?)<\/title>/i)?.[1] ?? "";
+}
+
+function keywordRows(query) {
+  if (query === "삼성전자") {
+    return [
+      { relKeyword: "삼성전자", monthlyPcQcCnt: "3,165,000", monthlyMobileQcCnt: "16,661,800", compIdx: "HIGH", plAvgDepth: "3" },
+      { relKeyword: "삼성전자몰", monthlyPcQcCnt: "7,710", monthlyMobileQcCnt: "15,000", compIdx: "HIGH", plAvgDepth: "9" },
+    ];
+  }
+
+  return [
+    { relKeyword: "부업", monthlyPcQcCnt: "4,970", monthlyMobileQcCnt: "13,100", compIdx: "HIGH", plAvgDepth: "10" },
+    { relKeyword: "재택부업", monthlyPcQcCnt: "3,180", monthlyMobileQcCnt: "9,040", compIdx: "MID", plAvgDepth: "7" },
+    { relKeyword: "부업사이트", monthlyPcQcCnt: "1,320", monthlyMobileQcCnt: "4,160", compIdx: "LOW", plAvgDepth: "4" },
+  ];
+}
+
+async function withMockSearchAd(callback) {
+  const configKeys = [
+    "NAVER_SEARCHAD_API_KEY",
+    "NAVER_SEARCHAD_SECRET_KEY",
+    "NAVER_SEARCHAD_CUSTOMER_ID",
+  ];
+  const originals = new Map(configKeys.map((key) => [key, process.env[key]]));
+  const originalFetch = globalThis.fetch;
+
+  process.env.NAVER_SEARCHAD_API_KEY = "test-api-key";
+  process.env.NAVER_SEARCHAD_SECRET_KEY = "test-secret-key";
+  process.env.NAVER_SEARCHAD_CUSTOMER_ID = "123456";
+  globalThis.fetch = async (input, init) => {
+    const target = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const url = new URL(target);
+    if (url.hostname === "api.searchad.naver.com") {
+      return Response.json({ keywordList: keywordRows(url.searchParams.get("hintKeywords") ?? "") });
+    }
+    return originalFetch(input, init);
+  };
+
+  try {
+    await callback();
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const [key, value] of originals) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
 test("root renders the keyword briefing home", async () => {
   const response = await render("/");
   assert.equal(response.status, 200);
@@ -91,6 +142,47 @@ test("/dl renders the keyword lab route", async () => {
   assert.match(html, /키워드랩/);
   assert.match(html, /AI 브리핑 키워드 대시보드/);
   assert.match(html, /keyword-tabs/);
+});
+
+test("keyword pages server-render unique SEO content and canonical metadata", async () => {
+  await withMockSearchAd(async () => {
+    const encodedKeyword = encodeURIComponent("부업");
+    const response = await render(`/keyword/${encodedKeyword}`);
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    const canonicalUrl = `${ORIGIN}/keyword/${encodedKeyword}`;
+
+    assert.match(html, /<html\s+lang=["']ko["']/i);
+    assert.ok(html.includes("<title>부업 검색량 18,070회 | 경쟁도 B | 키워드랩</title>"));
+    assert.match(html, /18,070/);
+    assert.match(html, /4,970/);
+    assert.match(html, /13,100/);
+    assert.ok(tagHasAttributes(html, "link", { rel: "canonical", href: canonicalUrl }));
+    assert.ok(tagHasAttributes(html, "meta", { property: "og:url", content: canonicalUrl }));
+    assert.match(html, /application\/ld\+json/);
+    assert.match(html, /Dataset/);
+
+    const dlResponse = await render(`/dl?q=${encodedKeyword}`);
+    assert.equal(dlResponse.status, 200);
+    const dlHtml = await dlResponse.text();
+    assert.ok(tagHasAttributes(dlHtml, "link", { rel: "canonical", href: canonicalUrl }));
+    assert.match(dlHtml, /18,070/);
+
+    const otherResponse = await render(`/keyword/${encodeURIComponent("삼성전자")}`);
+    assert.equal(otherResponse.status, 200);
+    const otherHtml = await otherResponse.text();
+    assert.notEqual(htmlTitle(html), htmlTitle(otherHtml));
+    assert.ok(htmlTitle(otherHtml).includes("삼성전자 검색량 19,826,800회"));
+  });
+});
+
+test("keyword pages return 200 with popular links when data is unavailable", async () => {
+  const response = await render(`/keyword/${encodeURIComponent("없는키워드테스트")}`);
+  assert.equal(response.status, 200);
+  const html = await response.text();
+
+  assert.match(html, /데이터를 찾을 수 없습니다/);
+  assert.match(html, /\/keyword\/%EB%B6%80%EC%97%85/);
 });
 
 test("Cloudflare Pages output includes the advanced-mode SSR worker", async () => {
@@ -197,9 +289,10 @@ test("every stock in the shared verified universe server-renders content, SEO, s
       assert.ok(html.includes("데이터: Financial Modeling Prep Stable API"));
       assert.doesNotMatch(html, /yahoo|ETF FLOW|codex-preview/i);
 
-      const jsonLdText = rawHtml.match(/<script\s+type=["']application\/ld\+json["']>([\s\S]*?)<\/script>/i)?.[1];
-      assert.ok(jsonLdText, "JSON-LD must be server-rendered");
-      const jsonLd = JSON.parse(jsonLdText);
+      const jsonLd = [...rawHtml.matchAll(/<script\s+type=["']application\/ld\+json["']>([\s\S]*?)<\/script>/gi)]
+        .map((match) => JSON.parse(match[1]))
+        .find((item) => Array.isArray(item["@graph"]) && item["@graph"].some((graphItem) => graphItem["@type"] === "FAQPage"));
+      assert.ok(jsonLd, "JSON-LD must be server-rendered");
       const application = jsonLd["@graph"].find((item) => item["@type"] === "WebApplication");
       const faq = jsonLd["@graph"].find((item) => item["@type"] === "FAQPage");
       assert.equal(application.name, `${name} 배당금 계산기`);

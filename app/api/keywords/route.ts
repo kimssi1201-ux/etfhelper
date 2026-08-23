@@ -1,5 +1,5 @@
-import { getNaverOpenApiInsights } from "@/lib/naver-openapi";
-import { lookupNaverKeywords, NaverSearchAdError } from "@/lib/naver-searchad";
+import { getKeywordInsights } from "@/lib/keyword-data";
+import { NaverSearchAdError } from "@/lib/naver-searchad";
 
 const STATUS_BY_CODE: Record<NaverSearchAdError["code"], number> = {
   NAVER_SEARCHAD_CONFIG_MISSING: 503,
@@ -32,15 +32,10 @@ export async function GET(request: Request) {
   const keyword = url.searchParams.get("keyword") ?? "";
 
   try {
-    const data = await lookupNaverKeywords(keyword);
-    const primary = data.results[0];
-    const openApi = await getNaverOpenApiInsights(data.keyword, primary?.total ?? 0);
+    const data = await getKeywordInsights(keyword);
 
     return Response.json(
-      {
-        ...data,
-        openApi,
-      },
+      data,
       {
         headers: {
           "cache-control": "public, max-age=3600, stale-while-revalidate=600",

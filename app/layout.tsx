@@ -14,6 +14,20 @@ const ibmPlexMono = IBM_Plex_Mono({
   subsets: ["latin"],
 });
 
+const websiteStructuredData = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "@id": "https://fastincome.kr/#website",
+  name: "키워드랩",
+  url: "https://fastincome.kr/",
+  inLanguage: "ko-KR",
+  potentialAction: {
+    "@type": "SearchAction",
+    target: "https://fastincome.kr/dl?q={search_term_string}",
+    "query-input": "required name=search_term_string",
+  },
+};
+
 async function getRequestOrigin() {
   const incoming = await headers();
   const forwardedHost = incoming.get("x-forwarded-host")?.split(",")[0]?.trim();
@@ -69,6 +83,12 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(websiteStructuredData).replace(/</g, "\\u003c"),
+          }}
+        />
         <script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5751319666030430"

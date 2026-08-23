@@ -2,40 +2,33 @@
 
 import Link from "next/link";
 import { Fragment, useEffect, useRef, useState } from "react";
-
-type KeywordMetric = {
-  keyword: string;
-  pc: number;
-  mobile: number;
-  total: number;
-  mobileRate: number;
-  competition: string;
-  bid: number | null;
-};
-
-type KeywordApiResponse = {
-  keyword: string;
-  results: KeywordMetric[];
-  updatedAt: string;
-  source: "NAVER_SEARCHAD";
-  openApi?: {
-    availability: {
-      status: "available" | "config-missing" | "auth-error" | "rate-limit" | "unavailable";
-      message: string | null;
-    };
-    documentStats: {
-      blog: number | null;
-      news: number | null;
-      cafe: number | null;
-      web: number | null;
-      total: number | null;
-      saturationIndex: number | null;
-    } | null;
-    trend: Array<{ period: string; ratio: number }>;
-    updatedAt: string | null;
-    source: "NAVER_OPENAPI";
-  };
-};
+import {
+  competitionScore,
+  competitionTone,
+  decodeKeywordParam,
+  defaultKeyword,
+  formatNumber,
+  formatUpdatedAt,
+  gradeBadgeLabel,
+  gradeCriteria,
+  gradeMessage,
+  gradeStep,
+  gradeTone,
+  hasNumber,
+  isKeywordTab,
+  keywordFetchFailedMessage,
+  keywordGrade,
+  keywordLoadingMessage,
+  keywordNoDataMessage,
+  keywordPath,
+  keywordScore,
+  keywordSearchPath,
+  keywordTabs,
+  normalizeKeyword,
+  popularKeywords,
+  volumeBarWidth,
+} from "@/lib/keyword-shared";
+import type { KeywordApiResponse, KeywordMetric, KeywordTabId } from "@/lib/keyword-shared";
 
 const relatedSeedInputs: Array<Omit<KeywordMetric, "total" | "mobileRate">> = [
   { keyword: "부업", pc: 18400, mobile: 81200, competition: "높음", bid: 920 },
@@ -52,21 +45,8 @@ const relatedSeeds: KeywordMetric[] = relatedSeedInputs.map((item) => ({
   mobileRate: Math.round((item.mobile / (item.pc + item.mobile)) * 100),
 }));
 
-const recentKeywords = ["부업", "배당주", "스마트스토어", "블로그 수익", "키워드 검색량"];
 const tablePageSize = 20;
-const keywordFetchFailedMessage = "데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요";
-const keywordLoadingMessage = "키워드 데이터를 조회 중입니다.";
 const sampleFallbackEnabled = process.env.NODE_ENV !== "production";
-
-type KeywordTabId = "summary" | "briefing" | "cards" | "ranking" | "related";
-
-const keywordTabs: Array<{ id: KeywordTabId; label: string }> = [
-  { id: "summary", label: "요약" },
-  { id: "briefing", label: "AI 브리핑" },
-  { id: "cards", label: "키워드 카드" },
-  { id: "ranking", label: "상승 키워드" },
-  { id: "related", label: "상세 표" },
-];
 
 const minVolumeOptions = [
   { label: "전체", value: 0 },
@@ -75,109 +55,54 @@ const minVolumeOptions = [
   { label: "1000+", value: 1000 },
 ];
 
-function isKeywordTab(value: string | null): value is KeywordTabId {
-  return keywordTabs.some((tab) => tab.id === value);
+type KeywordToolProps = {
+  initialData?: KeywordApiResponse | null;
+  initialError?: string | null;
+  initialKeyword?: string;
+};
+
+function keywordFromLocation(fallback: string) {
+  if (typeof window === "undefined") return normalizeKeyword(fallback) || defaultKeyword;
+
+  const url = new URL(window.location.href);
+  const q = normalizeKeyword(url.searchParams.get("q"));
+  if (q) return q;
+
+  if (url.pathname.startsWith("/keyword/")) {
+    const pathKeyword = decodeKeywordParam(url.pathname.split("/").filter(Boolean).at(1));
+    if (pathKeyword) return pathKeyword;
+  }
+
+  return normalizeKeyword(fallback) || defaultKeyword;
 }
 
-function formatNumber(value: number) {
-  return value.toLocaleString("ko-KR");
+function tabFromLocation(fallback: KeywordTabId) {
+  if (typeof window === "undefined") return fallback;
+  const tab = new URLSearchParams(window.location.search).get("tab");
+  return isKeywordTab(tab) ? tab : fallback;
 }
 
-function formatUpdatedAt(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "집계 준비 중";
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${date.getMonth() + 1}월 ${date.getDate()}일 ${hours}:${minutes} 기준`;
-}
-
-function competitionScore(value: string) {
-  if (value === "낮음") return 24;
-  if (value === "중간") return 52;
-  if (value === "높음") return 82;
-  return 45;
-}
-
-function keywordScore(item: KeywordMetric) {
-  const volume = Math.min(42, Math.round(Math.log10(Math.max(item.total, 10)) * 10));
-  const mobile = Math.min(18, Math.round(item.mobileRate / 6));
-  const competition = 40 - Math.round(competitionScore(item.competition) / 3);
-  return Math.max(1, Math.min(100, volume + mobile + competition));
-}
-
-function keywordGrade(score: number) {
-  if (score >= 82) return "S";
-  if (score >= 68) return "A";
-  if (score >= 52) return "B";
-  if (score >= 36) return "C";
-  return "D";
-}
-
-function gradeStep(grade: string) {
-  return ({ S: 1, A: 2, B: 3, C: 4, D: 5 } as Record<string, number>)[grade] ?? 5;
-}
-
-function gradeTone(grade: string) {
-  if (grade === "S" || grade === "A") return "easy";
-  if (grade === "B" || grade === "C") return "mid";
-  return "hard";
-}
-
-function gradeMessage(grade: string) {
-  if (grade === "S") return "매우 수월함";
-  if (grade === "A") return "진입 여지 있음";
-  if (grade === "B") return "경쟁 보통";
-  if (grade === "C") return "경쟁이 다소 치열함";
-  return "경쟁 강함";
-}
-
-const gradeCriteria = [
-  { grade: "S", label: "82점 이상", description: "검색량 대비 경쟁 부담이 매우 낮음" },
-  { grade: "A", label: "68점 이상", description: "진입 여지가 충분함" },
-  { grade: "B", label: "52점 이상", description: "경쟁 보통" },
-  { grade: "C", label: "36점 이상", description: "경쟁이 다소 치열함" },
-  { grade: "D", label: "36점 미만", description: "경쟁 강함" },
-];
-
-function gradeBadgeLabel(grade: string) {
-  return `${grade}등급 · ${gradeMessage(grade)}`;
-}
-
-function competitionTone(value: string) {
-  if (value === "낮음") return "easy";
-  if (value === "중간") return "mid";
-  return "hard";
-}
-
-function hasNumber(value: number | null | undefined): value is number {
-  return typeof value === "number" && Number.isFinite(value);
-}
-
-function volumeBarWidth(volume: number, maxVolume: number) {
-  if (volume <= 0 || maxVolume <= 0) return 0;
-  const ratio = Math.log10(volume + 1) / Math.log10(maxVolume + 1);
-  return Math.max(4, Math.round(ratio * 100));
-}
-
-export default function KeywordTool() {
-  const [keyword, setKeyword] = useState("부업");
-  const [submittedKeyword, setSubmittedKeyword] = useState("부업");
+export default function KeywordTool({
+  initialData = null,
+  initialError = null,
+  initialKeyword = defaultKeyword,
+}: KeywordToolProps) {
+  const resolvedInitialKeyword = normalizeKeyword(initialKeyword) || defaultKeyword;
+  const [keyword, setKeyword] = useState(() => keywordFromLocation(resolvedInitialKeyword));
+  const [submittedKeyword, setSubmittedKeyword] = useState(() => keywordFromLocation(resolvedInitialKeyword));
   const [sort, setSort] = useState<"volume" | "competition">("volume");
-  const [activeTab, setActiveTab] = useState<KeywordTabId>(() => {
-    if (typeof window === "undefined") return "summary";
-    const tab = new URLSearchParams(window.location.search).get("tab");
-    return isKeywordTab(tab) ? tab : "summary";
-  });
+  const [activeTab, setActiveTab] = useState<KeywordTabId>(() => tabFromLocation("summary"));
   const [filterText, setFilterText] = useState("");
   const [debouncedFilterText, setDebouncedFilterText] = useState("");
   const [minVolume, setMinVolume] = useState(0);
   const [visibleCount, setVisibleCount] = useState(tablePageSize);
   const [gradeGuideOpen, setGradeGuideOpen] = useState(false);
   const [showTopButton, setShowTopButton] = useState(false);
-  const [data, setData] = useState<KeywordApiResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<KeywordApiResponse | null>(initialData);
+  const [loading, setLoading] = useState(!initialData && !initialError);
+  const [error, setError] = useState<string | null>(initialError);
   const [requestNonce, setRequestNonce] = useState(0);
+  const skipInitialFetchRef = useRef(Boolean(initialData || initialError));
   const tabRefs = useRef<Record<KeywordTabId, HTMLButtonElement | null>>({
     summary: null,
     briefing: null,
@@ -309,6 +234,21 @@ export default function KeywordTool() {
     ...(trendDelta === null ? [] : [{ label: "트렌드", value: trendLabel }]),
     ...(hasDocumentTotal ? [{ label: "문서 합계", value: formatNumber(documentStats.total) }] : []),
   ];
+  const showEmptyLinks = !loading && !primary && !showingSampleData;
+  const emptyState = (
+    <div className="keyword-empty" role={statusRole}>
+      <p>{statusMessage || keywordNoDataMessage}</p>
+      {showEmptyLinks && (
+        <nav className="keyword-empty-links" aria-label="인기 키워드">
+          {popularKeywords.map((item) => (
+            <Link key={item} href={keywordPath(item)}>
+              {item}
+            </Link>
+          ))}
+        </nav>
+      )}
+    </div>
+  );
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -321,7 +261,8 @@ export default function KeywordTool() {
 
   useEffect(() => {
     const url = new URL(window.location.href);
-    url.searchParams.set("tab", activeTab);
+    if (activeTab === "summary") url.searchParams.delete("tab");
+    else url.searchParams.set("tab", activeTab);
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   }, [activeTab]);
 
@@ -336,8 +277,34 @@ export default function KeywordTool() {
   }, []);
 
   useEffect(() => {
+    const restoreFromHistory = () => {
+      const nextKeyword = keywordFromLocation(defaultKeyword);
+      setKeyword(nextKeyword);
+      setSubmittedKeyword(nextKeyword);
+      setActiveTab(tabFromLocation("summary"));
+      setLoading(true);
+      setError(null);
+      setData(null);
+      setVisibleCount(tablePageSize);
+      skipInitialFetchRef.current = false;
+      setRequestNonce((nonce) => nonce + 1);
+    };
+
+    window.addEventListener("popstate", restoreFromHistory);
+    return () => window.removeEventListener("popstate", restoreFromHistory);
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
+
+    if (skipInitialFetchRef.current) {
+      skipInitialFetchRef.current = false;
+      return () => {
+        cancelled = true;
+        controller.abort();
+      };
+    }
 
     fetch(`/api/keywords?keyword=${encodeURIComponent(submittedKeyword)}&mode=relevant`, { signal: controller.signal })
       .then(async (response) => {
@@ -371,7 +338,8 @@ export default function KeywordTool() {
   }
 
   function submitKeyword(value: string) {
-    const nextKeyword = value.trim() || "키워드";
+    const nextKeyword = normalizeKeyword(value) || defaultKeyword;
+    window.history.pushState(null, "", keywordSearchPath(nextKeyword, activeTab));
     setKeyword(nextKeyword);
     setLoading(true);
     setError(null);
@@ -435,10 +403,17 @@ export default function KeywordTool() {
           <button type="submit">검색</button>
         </form>
         <div className="keyword-recent" aria-label="최근 키워드">
-          {recentKeywords.map((item) => (
-            <button key={item} type="button" onClick={() => selectKeyword(item)}>
+          {popularKeywords.map((item) => (
+            <Link
+              key={item}
+              href={keywordPath(item)}
+              onClick={(event) => {
+                event.preventDefault();
+                selectKeyword(item);
+              }}
+            >
               {item}
-            </button>
+            </Link>
           ))}
         </div>
       </section>
@@ -496,9 +471,7 @@ export default function KeywordTool() {
             </section>
           ) : (
             <section className="keyword-summary" aria-label="검색량 요약">
-              <article className="metric-card metric-card-wide keyword-empty" role={statusRole}>
-                {statusMessage}
-              </article>
+              <article className="metric-card metric-card-wide">{emptyState}</article>
             </section>
           )}
           <div className="ad-slot keyword-summary-ad" data-slot="keyword-summary-after" aria-hidden="true" />
@@ -567,7 +540,7 @@ export default function KeywordTool() {
             </div>
           </>
         ) : (
-          <div className="keyword-empty" role={statusRole}>{statusMessage}</div>
+          emptyState
         )}
       </section>
       )}
@@ -587,7 +560,7 @@ export default function KeywordTool() {
         </div>
         <div className="keyword-card-grid">
           {topRelated.length === 0 ? (
-            <div className="keyword-empty" role={statusRole}>{statusMessage}</div>
+            emptyState
           ) : topRelated.map((item) => {
             const itemScore = keywordScore(item);
             const itemGrade = keywordGrade(itemScore);
@@ -629,7 +602,7 @@ export default function KeywordTool() {
         </div>
         <div className="ranking-list">
           {volumeRankKeywords.length === 0 ? (
-            <div className="keyword-empty" role={statusRole}>{statusMessage}</div>
+            emptyState
           ) : volumeRankKeywords.map((item, index) => (
             <button
               key={item.keyword}
@@ -706,9 +679,9 @@ export default function KeywordTool() {
         <div className="keyword-table-wrap">
           <div className="keyword-table">
             {filteredResults.length === 0 ? (
-              <div className="keyword-empty" role={statusRole}>
-                {primary || showingSampleData ? "조건에 맞는 키워드가 없습니다" : statusMessage}
-              </div>
+              primary || showingSampleData
+                ? <div className="keyword-empty" role="status"><p>조건에 맞는 키워드가 없습니다</p></div>
+                : emptyState
             ) : visibleResults.map((item, index) => {
               const itemScore = keywordScore(item);
               const itemGrade = keywordGrade(itemScore);
@@ -716,7 +689,14 @@ export default function KeywordTool() {
               const gradeLabel = gradeBadgeLabel(itemGrade);
               return (
                 <Fragment key={item.keyword}>
-                  <a className="keyword-row" href="#search" onClick={() => selectKeyword(item.keyword)}>
+                  <a
+                    className="keyword-row"
+                    href={keywordPath(item.keyword)}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      selectKeyword(item.keyword);
+                    }}
+                  >
                     <span className="keyword-row-name">{item.keyword}</span>
                     <span className="keyword-row-bar" aria-hidden="true"><i style={{ width: `${volumeBarWidth(item.total, maxRelatedVolume)}%` }} /></span>
                     <span className="keyword-row-volume">{formatNumber(item.total)}</span>
