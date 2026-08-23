@@ -78,8 +78,9 @@ test("root renders the keyword briefing home", async () => {
   assert.match(html, /keyword-search/);
   assert.match(html, /role="tablist"/);
   assert.match(html, /aria-controls="keyword-panel-related"/);
-  assert.match(html, /검색량 분포/);
+  assert.match(html, /키워드 데이터를 조회 중입니다\./);
   assert.match(html, /data-slot="keyword-summary-after"/);
+  assert.doesNotMatch(html, /샘플 데이터/);
   assert.doesNotMatch(html, /네이버 OpenAPI 연결 대기|네이버 개발자센터 API 인증에 실패했습니다/);
 });
 
@@ -124,6 +125,39 @@ test("Cloudflare Pages worker serves uploaded static assets before SSR", async (
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/css\b/i);
   assert.match(await response.text(), /keyword-shell/);
+});
+
+test("missing Naver SearchAd config returns a safe, non-cacheable keyword API error", async () => {
+  const configKeys = [
+    "NAVER_SEARCHAD_API_KEY",
+    "NAVER_SEARCHAD_SECRET_KEY",
+    "NAVER_SEARCHAD_CUSTOMER_ID",
+  ];
+  const originals = new Map(configKeys.map((key) => [key, process.env[key]]));
+
+  for (const key of configKeys) delete process.env[key];
+
+  try {
+    const response = await render("/api/keywords?keyword=%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90&mode=relevant", {
+      accept: "application/json",
+    });
+    const responseText = await response.text();
+    const body = JSON.parse(responseText);
+
+    assert.equal(response.status, 503);
+    assert.match(response.headers.get("content-type") ?? "", /^application\/json\b/i);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.deepEqual(Object.keys(body), ["error"]);
+    assert.equal(body.error.code, "NAVER_SEARCHAD_CONFIG_MISSING");
+    assert.equal(body.error.message, "데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요");
+    assert.doesNotMatch(responseText, /NAVER_SEARCHAD_API_KEY|NAVER_SEARCHAD_SECRET_KEY|NAVER_SEARCHAD_CUSTOMER_ID/);
+    assert.doesNotMatch(responseText, /네이버 검색광고 API 환경변수|stack|node_modules|lib[\\/]naver-searchad/i);
+  } finally {
+    for (const [key, value] of originals) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 });
 
 test("every stock in the shared verified universe server-renders content, SEO, structured data, and disclaimer", async (t) => {

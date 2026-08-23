@@ -1,6 +1,16 @@
 const NAVER_SEARCHAD_BASE_URL = "https://api.searchad.naver.com";
 const KEYWORD_TOOL_PATH = "/keywordstool";
 const KEYWORD_CACHE_SECONDS = 60 * 60;
+const METHOD = "GET";
+
+type NaverSearchAdErrorDetails = {
+  endpoint?: string;
+  method?: string;
+  missingConfig?: string[];
+  path?: string;
+  status?: number;
+  upstreamMessage?: string;
+};
 
 type SearchAdFetchInit = RequestInit & {
   next?: { revalidate: number };
@@ -45,6 +55,7 @@ export class NaverSearchAdError extends Error {
       | "NAVER_SEARCHAD_NO_DATA"
       | "NAVER_SEARCHAD_UPSTREAM_ERROR",
     message: string,
+    public readonly details: NaverSearchAdErrorDetails = {},
   ) {
     super(message);
     this.name = "NaverSearchAdError";
@@ -55,10 +66,22 @@ function getConfig() {
   const apiKey = process.env.NAVER_SEARCHAD_API_KEY?.trim();
   const secretKey = process.env.NAVER_SEARCHAD_SECRET_KEY?.trim();
   const customerId = process.env.NAVER_SEARCHAD_CUSTOMER_ID?.trim();
+  const missingConfig = [
+    !apiKey && "NAVER_SEARCHAD_API_KEY",
+    !secretKey && "NAVER_SEARCHAD_SECRET_KEY",
+    !customerId && "NAVER_SEARCHAD_CUSTOMER_ID",
+  ].filter((item): item is string => Boolean(item));
+
   if (!apiKey || !secretKey || !customerId) {
     throw new NaverSearchAdError(
       "NAVER_SEARCHAD_CONFIG_MISSING",
       "서버에 네이버 검색광고 API 환경변수가 설정되지 않았습니다.",
+      {
+        endpoint: NAVER_SEARCHAD_BASE_URL,
+        method: METHOD,
+        missingConfig,
+        path: KEYWORD_TOOL_PATH,
+      },
     );
   }
   return { apiKey, secretKey, customerId };
@@ -112,14 +135,28 @@ function normalizeCompetition(value: unknown) {
   return normalized || "-";
 }
 
+async function readUpstreamMessage(response: Response) {
+  const body = await response.text().catch(() => "");
+  return body.replace(/\s+/g, " ").trim().slice(0, 500) || response.statusText || null;
+}
+
+function errorDetails(status?: number, upstreamMessage?: string | null): NaverSearchAdErrorDetails {
+  return {
+    endpoint: NAVER_SEARCHAD_BASE_URL,
+    method: METHOD,
+    path: KEYWORD_TOOL_PATH,
+    status,
+    upstreamMessage: upstreamMessage ?? undefined,
+  };
+}
+
 export async function lookupNaverKeywords(keyword: string): Promise<KeywordLookupResult> {
   const query = keyword.trim().replace(/\s+/g, " ");
   if (query.length < 1) throw new NaverSearchAdError("NAVER_SEARCHAD_NO_DATA", "검색어를 입력해 주세요.");
 
   const { apiKey, secretKey, customerId } = getConfig();
-  const method = "GET";
   const timestamp = Date.now().toString();
-  const signature = await createSignature(timestamp, method, KEYWORD_TOOL_PATH, secretKey);
+  const signature = await createSignature(timestamp, METHOD, KEYWORD_TOOL_PATH, secretKey);
   const url = new URL(KEYWORD_TOOL_PATH, NAVER_SEARCHAD_BASE_URL);
   url.searchParams.set("hintKeywords", query);
   url.searchParams.set("showDetail", "1");
@@ -127,6 +164,7 @@ export async function lookupNaverKeywords(keyword: string): Promise<KeywordLooku
   let response: Response;
   try {
     response = await fetch(url, {
+      method: METHOD,
       headers: {
         "X-Timestamp": timestamp,
         "X-API-KEY": apiKey,
@@ -136,25 +174,46 @@ export async function lookupNaverKeywords(keyword: string): Promise<KeywordLooku
       next: { revalidate: KEYWORD_CACHE_SECONDS },
       cf: { cacheEverything: true, cacheTtl: KEYWORD_CACHE_SECONDS },
     } as SearchAdFetchInit);
-  } catch {
-    throw new NaverSearchAdError("NAVER_SEARCHAD_UPSTREAM_ERROR", "네이버 검색광고 API에 연결하지 못했습니다.");
+  } catch (error) {
+    throw new NaverSearchAdError(
+      "NAVER_SEARCHAD_UPSTREAM_ERROR",
+      "네이버 검색광고 API에 연결하지 못했습니다.",
+      errorDetails(undefined, error instanceof Error ? error.message : String(error)),
+    );
   }
 
-  if (response.status === 401 || response.status === 403) {
-    throw new NaverSearchAdError("NAVER_SEARCHAD_AUTH_ERROR", "네이버 검색광고 API 인증에 실패했습니다.");
-  }
-  if (response.status === 429) {
-    throw new NaverSearchAdError("NAVER_SEARCHAD_RATE_LIMIT", "네이버 검색광고 API 호출 한도를 초과했습니다.");
-  }
   if (!response.ok) {
-    throw new NaverSearchAdError("NAVER_SEARCHAD_UPSTREAM_ERROR", "네이버 검색광고 API 응답을 처리하지 못했습니다.");
+    const upstreamMessage = await readUpstreamMessage(response);
+    if (response.status === 401 || response.status === 403) {
+      throw new NaverSearchAdError(
+        "NAVER_SEARCHAD_AUTH_ERROR",
+        "네이버 검색광고 API 인증에 실패했습니다.",
+        errorDetails(response.status, upstreamMessage),
+      );
+    }
+    if (response.status === 429) {
+      throw new NaverSearchAdError(
+        "NAVER_SEARCHAD_RATE_LIMIT",
+        "네이버 검색광고 API 호출 한도를 초과했습니다.",
+        errorDetails(response.status, upstreamMessage),
+      );
+    }
+    throw new NaverSearchAdError(
+      "NAVER_SEARCHAD_UPSTREAM_ERROR",
+      "네이버 검색광고 API 응답을 처리하지 못했습니다.",
+      errorDetails(response.status, upstreamMessage),
+    );
   }
 
   let payload: KeywordToolResponse;
   try {
     payload = await response.json() as KeywordToolResponse;
-  } catch {
-    throw new NaverSearchAdError("NAVER_SEARCHAD_UPSTREAM_ERROR", "네이버 검색광고 API 응답 형식이 올바르지 않습니다.");
+  } catch (error) {
+    throw new NaverSearchAdError(
+      "NAVER_SEARCHAD_UPSTREAM_ERROR",
+      "네이버 검색광고 API 응답 형식이 올바르지 않습니다.",
+      errorDetails(response.status, error instanceof Error ? error.message : String(error)),
+    );
   }
 
   const rows = Array.isArray(payload.keywordList) ? payload.keywordList : [];

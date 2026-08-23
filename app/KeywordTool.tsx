@@ -54,6 +54,9 @@ const relatedSeeds: KeywordMetric[] = relatedSeedInputs.map((item) => ({
 
 const recentKeywords = ["부업", "배당주", "스마트스토어", "블로그 수익", "키워드 검색량"];
 const tablePageSize = 20;
+const keywordFetchFailedMessage = "데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요";
+const keywordLoadingMessage = "키워드 데이터를 조회 중입니다.";
+const sampleFallbackEnabled = process.env.NODE_ENV !== "production";
 
 type KeywordTabId = "summary" | "briefing" | "cards" | "ranking" | "related";
 
@@ -172,8 +175,9 @@ export default function KeywordTool() {
   const [gradeGuideOpen, setGradeGuideOpen] = useState(false);
   const [showTopButton, setShowTopButton] = useState(false);
   const [data, setData] = useState<KeywordApiResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [requestNonce, setRequestNonce] = useState(0);
   const tabRefs = useRef<Record<KeywordTabId, HTMLButtonElement | null>>({
     summary: null,
     briefing: null,
@@ -182,7 +186,9 @@ export default function KeywordTool() {
     related: null,
   });
 
-  const baseResults = data?.results.length ? data.results : relatedSeeds;
+  const hasLiveResults = Boolean(data?.results.length);
+  const showingSampleData = !loading && !hasLiveResults && sampleFallbackEnabled;
+  const baseResults = hasLiveResults ? data?.results ?? [] : showingSampleData ? relatedSeeds : [];
   const results = [...baseResults].sort((a, b) => sort === "volume"
     ? b.total - a.total
     : competitionScore(a.competition) - competitionScore(b.competition));
@@ -194,18 +200,18 @@ export default function KeywordTool() {
   const visibleResults = filteredResults.slice(0, visibleCount);
   const visibleResultCount = Math.min(visibleCount, filteredResults.length);
 
-  const primary = results[0];
+  const primary = results[0] ?? null;
   const totalVolume = results.reduce((sum, item) => sum + item.total, 0);
   const easyCount = results.filter((item) => item.competition === "낮음").length;
   const hardCount = results.filter((item) => item.competition === "높음").length;
   const averageMobileRate = Math.round(results.reduce((sum, item) => sum + item.mobileRate, 0) / Math.max(results.length, 1));
-  const updatedAt = data ? formatUpdatedAt(data.updatedAt) : "샘플 데이터";
-  const score = keywordScore(primary);
+  const updatedAt = data ? formatUpdatedAt(data.updatedAt) : showingSampleData ? "개발용 샘플 데이터" : "집계 준비 중";
+  const score = primary ? keywordScore(primary) : 0;
   const grade = keywordGrade(score);
   const gradeLevel = gradeStep(grade);
   const gradeToneName = gradeTone(grade);
-  const forecast = Math.round(primary.total * 1.08);
-  const adEfficiency = primary.competition === "낮음" ? "좋음" : primary.competition === "중간" ? "보통" : "주의";
+  const forecast = primary ? Math.round(primary.total * 1.08) : 0;
+  const adEfficiency = !primary ? "집계 준비 중" : primary.competition === "낮음" ? "좋음" : primary.competition === "중간" ? "보통" : "주의";
   const opportunity = score >= 68 ? "우선 검토" : score >= 52 ? "세부 키워드 검토" : "롱테일 권장";
   const topRelated = results.slice(0, 4);
   const volumeRankKeywords = results.slice(0, 5);
@@ -220,7 +226,9 @@ export default function KeywordTool() {
   const previousTrend = trend.at(-2);
   const trendDelta = latestTrend && previousTrend ? Math.round((latestTrend.ratio - previousTrend.ratio) * 10) / 10 : null;
   const trendLabel = trendDelta === null ? "데이터 없음" : trendDelta >= 0 ? `+${trendDelta}` : `${trendDelta}`;
-  const summaryCards = [
+  const statusMessage = loading ? keywordLoadingMessage : error ?? keywordFetchFailedMessage;
+  const statusRole = loading ? "status" : "alert";
+  const summaryCards = primary ? [
     {
       key: "grade",
       className: `metric-card grade-card grade-${gradeToneName}`,
@@ -292,7 +300,7 @@ export default function KeywordTool() {
         </>
       ),
     }] : []),
-  ];
+  ] : [];
   const aiMetrics = [
     { label: "기회 점수", value: score },
     { label: "낮은 경쟁", value: easyCount },
@@ -333,7 +341,7 @@ export default function KeywordTool() {
 
     fetch(`/api/keywords?keyword=${encodeURIComponent(submittedKeyword)}&mode=relevant`, { signal: controller.signal })
       .then(async (response) => {
-        const body = await response.json().catch(() => null) as KeywordApiResponse | { error?: { message?: string } } | null;
+        const body = await response.json().catch(() => null) as KeywordApiResponse | { error?: { code?: string; message?: string } } | null;
         if (!response.ok) throw new Error(body && "error" in body ? body.error?.message : "키워드 데이터를 불러오지 못했습니다.");
         return body as KeywordApiResponse;
       })
@@ -342,9 +350,9 @@ export default function KeywordTool() {
       })
       .catch((fetchError: unknown) => {
         if (!cancelled && !(fetchError instanceof DOMException && fetchError.name === "AbortError")) {
-          console.warn("Keyword data fetch failed", fetchError);
+          console.warn("Keyword data fetch failed", { error: fetchError, keyword: submittedKeyword });
           setData(null);
-          setError("집계 준비 중");
+          setError(keywordFetchFailedMessage);
         }
       })
       .finally(() => {
@@ -355,22 +363,32 @@ export default function KeywordTool() {
       cancelled = true;
       controller.abort();
     };
-  }, [submittedKeyword]);
+  }, [submittedKeyword, requestNonce]);
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setLoading(true);
-    setError(null);
-    setVisibleCount(tablePageSize);
-    setSubmittedKeyword(keyword.trim() || "키워드");
+    submitKeyword(keyword);
   }
 
-  function selectKeyword(nextKeyword: string) {
+  function submitKeyword(value: string) {
+    const nextKeyword = value.trim() || "키워드";
     setKeyword(nextKeyword);
     setLoading(true);
     setError(null);
+    setData(null);
     setVisibleCount(tablePageSize);
     setSubmittedKeyword(nextKeyword);
+    setRequestNonce((nonce) => nonce + 1);
+  }
+
+  function submitOnEnter(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    submitKeyword(keyword);
+  }
+
+  function selectKeyword(nextKeyword: string) {
+    submitKeyword(nextKeyword);
   }
 
   function focusTab(tabId: KeywordTabId) {
@@ -411,6 +429,7 @@ export default function KeywordTool() {
             id="keyword"
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
+            onKeyDown={submitOnEnter}
             placeholder="예: 부업, 배당주, 스마트스토어"
           />
           <button type="submit">검색</button>
@@ -452,60 +471,70 @@ export default function KeywordTool() {
           aria-labelledby="keyword-tab-summary"
           tabIndex={0}
         >
-          <section className="keyword-summary" aria-label="검색량 요약">
-            <article className="metric-card metric-card-wide">
-              <span>월간 검색량</span>
-              <strong className="metric-number">{formatNumber(primary.total)}</strong>
-              <small>PC {formatNumber(primary.pc)} · 모바일 {formatNumber(primary.mobile)}</small>
-              <div className="volume-ratio" aria-label={`모바일 ${primary.mobileRate}%, PC ${100 - primary.mobileRate}%`}>
-                <span style={{ width: `${primary.mobileRate}%` }} />
-              </div>
-              <div className="volume-legend">
-                <span>Mobile {formatNumber(primary.mobile)}</span>
-                <span>PC {formatNumber(primary.pc)}</span>
-              </div>
-            </article>
-            {summaryCards.map((card, index) => (
-              <article
-                key={card.key}
-                className={`${card.className}${index === summaryCards.length - 1 && summaryCards.length % 2 === 1 ? " metric-card-fill" : ""}`}
-              >
-                {card.content}
+          {primary ? (
+            <section className="keyword-summary" aria-label="검색량 요약">
+              <article className="metric-card metric-card-wide">
+                <span>월간 검색량</span>
+                <strong className="metric-number">{formatNumber(primary.total)}</strong>
+                <small>PC {formatNumber(primary.pc)} · 모바일 {formatNumber(primary.mobile)}</small>
+                <div className="volume-ratio" aria-label={`모바일 ${primary.mobileRate}%, PC ${100 - primary.mobileRate}%`}>
+                  <span style={{ width: `${primary.mobileRate}%` }} />
+                </div>
+                <div className="volume-legend">
+                  <span>Mobile {formatNumber(primary.mobile)}</span>
+                  <span>PC {formatNumber(primary.pc)}</span>
+                </div>
               </article>
-            ))}
-          </section>
+              {summaryCards.map((card, index) => (
+                <article
+                  key={card.key}
+                  className={`${card.className}${index === summaryCards.length - 1 && summaryCards.length % 2 === 1 ? " metric-card-fill" : ""}`}
+                >
+                  {card.content}
+                </article>
+              ))}
+            </section>
+          ) : (
+            <section className="keyword-summary" aria-label="검색량 요약">
+              <article className="metric-card metric-card-wide keyword-empty" role={statusRole}>
+                {statusMessage}
+              </article>
+            </section>
+          )}
           <div className="ad-slot keyword-summary-ad" data-slot="keyword-summary-after" aria-hidden="true" />
-          {error && <div className="keyword-alert" role="status">{error}. 현재는 샘플 데이터를 표시합니다.</div>}
+          {error && showingSampleData && <div className="keyword-alert" role="status">{error}. 개발 환경에서만 샘플 데이터를 표시합니다.</div>}
 
-          <section className="keyword-grid">
-            <article id="distribution">
-              <h2>검색량 분포</h2>
-              <div className="keyword-chart keyword-distribution" aria-label="상위 8개 관련 키워드 검색량 분포">
-                {distributionKeywords.map((item) => (
-                  <div className="distribution-row" key={item.keyword} title={`${item.keyword} ${formatNumber(item.total)}회`}>
-                    <span className="distribution-label">{item.keyword}</span>
-                    <span className="distribution-bar" aria-hidden="true">
-                      <i style={{ width: `${volumeBarWidth(item.total, distributionMaxVolume)}%` }} />
-                    </span>
-                    <strong>{formatNumber(item.total)}</strong>
-                  </div>
-                ))}
-              </div>
-            </article>
-            <article id="trend">
-              <h2>상황 분석</h2>
-              <p>{submittedKeyword} 키워드는 현재 {formatNumber(primary.total)}회 규모의 월간 검색량을 보입니다. 경쟁도는 {primary.competition}이며, {opportunity} 대상으로 분류했습니다.</p>
-              <dl>
-                <div><dt>대표 키워드</dt><dd>{primary.keyword}</dd></div>
-                <div><dt>모바일 비중</dt><dd>{primary.mobileRate}%</dd></div>
-                <div><dt>참고 예상치</dt><dd>{formatNumber(forecast)}</dd></div>
-                <div><dt>연관 총 검색량</dt><dd>{formatNumber(totalVolume)}</dd></div>
-                {hasDocumentTotal && <div><dt>문서 수</dt><dd>{formatNumber(documentStats.total)}</dd></div>}
-                {hasSaturationIndex && <div><dt>포화도</dt><dd>{documentStats.saturationIndex}%</dd></div>}
-                <div><dt>추천 확장어</dt><dd>{topRelated.slice(1, 4).map((item) => item.keyword).join(", ") || "-"}</dd></div>
-              </dl>
-            </article>
-          </section>
+          {primary && (
+            <section className="keyword-grid">
+              <article id="distribution">
+                <h2>검색량 분포</h2>
+                <div className="keyword-chart keyword-distribution" aria-label="상위 8개 관련 키워드 검색량 분포">
+                  {distributionKeywords.map((item) => (
+                    <div className="distribution-row" key={item.keyword} title={`${item.keyword} ${formatNumber(item.total)}회`}>
+                      <span className="distribution-label">{item.keyword}</span>
+                      <span className="distribution-bar" aria-hidden="true">
+                        <i style={{ width: `${volumeBarWidth(item.total, distributionMaxVolume)}%` }} />
+                      </span>
+                      <strong>{formatNumber(item.total)}</strong>
+                    </div>
+                  ))}
+                </div>
+              </article>
+              <article id="trend">
+                <h2>상황 분석</h2>
+                <p>{submittedKeyword} 키워드는 현재 {formatNumber(primary.total)}회 규모의 월간 검색량을 보입니다. 경쟁도는 {primary.competition}이며, {opportunity} 대상으로 분류했습니다.</p>
+                <dl>
+                  <div><dt>대표 키워드</dt><dd>{primary.keyword}</dd></div>
+                  <div><dt>모바일 비중</dt><dd>{primary.mobileRate}%</dd></div>
+                  <div><dt>참고 예상치</dt><dd>{formatNumber(forecast)}</dd></div>
+                  <div><dt>연관 총 검색량</dt><dd>{formatNumber(totalVolume)}</dd></div>
+                  {hasDocumentTotal && <div><dt>문서 수</dt><dd>{formatNumber(documentStats.total)}</dd></div>}
+                  {hasSaturationIndex && <div><dt>포화도</dt><dd>{documentStats.saturationIndex}%</dd></div>}
+                  <div><dt>추천 확장어</dt><dd>{topRelated.slice(1, 4).map((item) => item.keyword).join(", ") || "-"}</dd></div>
+                </dl>
+              </article>
+            </section>
+          )}
         </section>
       )}
 
@@ -525,15 +554,21 @@ export default function KeywordTool() {
           </div>
           <span>{submittedKeyword}</span>
         </div>
-        <p>
-          <b>{submittedKeyword}</b> 키워드는 월간 {formatNumber(primary.total)}회 규모이며 모바일 비중은 {primary.mobileRate}%입니다.
-          경쟁도는 {primary.competition}이고, 현재는 <b>{opportunity}</b> 전략이 적합합니다.
-        </p>
-        <div className="keyword-ai-metrics">
-          {aiMetrics.map((item) => (
-            <div key={item.label}><span>{item.label}</span><strong>{item.value}</strong></div>
-          ))}
-        </div>
+        {primary ? (
+          <>
+            <p>
+              <b>{submittedKeyword}</b> 키워드는 월간 {formatNumber(primary.total)}회 규모이며 모바일 비중은 {primary.mobileRate}%입니다.
+              경쟁도는 {primary.competition}이고, 현재는 <b>{opportunity}</b> 전략이 적합합니다.
+            </p>
+            <div className="keyword-ai-metrics">
+              {aiMetrics.map((item) => (
+                <div key={item.label}><span>{item.label}</span><strong>{item.value}</strong></div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="keyword-empty" role={statusRole}>{statusMessage}</div>
+        )}
       </section>
       )}
 
@@ -551,7 +586,9 @@ export default function KeywordTool() {
           <h2>관련 키워드</h2>
         </div>
         <div className="keyword-card-grid">
-          {topRelated.map((item) => {
+          {topRelated.length === 0 ? (
+            <div className="keyword-empty" role={statusRole}>{statusMessage}</div>
+          ) : topRelated.map((item) => {
             const itemScore = keywordScore(item);
             const itemGrade = keywordGrade(itemScore);
             const itemTone = gradeTone(itemGrade);
@@ -591,7 +628,9 @@ export default function KeywordTool() {
           <h2>검색량 상위 키워드</h2>
         </div>
         <div className="ranking-list">
-          {volumeRankKeywords.map((item, index) => (
+          {volumeRankKeywords.length === 0 ? (
+            <div className="keyword-empty" role={statusRole}>{statusMessage}</div>
+          ) : volumeRankKeywords.map((item, index) => (
             <button
               key={item.keyword}
               type="button"
@@ -667,7 +706,9 @@ export default function KeywordTool() {
         <div className="keyword-table-wrap">
           <div className="keyword-table">
             {filteredResults.length === 0 ? (
-              <div className="keyword-empty" role="status">조건에 맞는 키워드가 없습니다</div>
+              <div className="keyword-empty" role={statusRole}>
+                {primary || showingSampleData ? "조건에 맞는 키워드가 없습니다" : statusMessage}
+              </div>
             ) : visibleResults.map((item, index) => {
               const itemScore = keywordScore(item);
               const itemGrade = keywordGrade(itemScore);
