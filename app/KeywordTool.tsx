@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 type KeywordMetric = {
   keyword: string;
@@ -53,9 +53,39 @@ const relatedSeeds: KeywordMetric[] = relatedSeedInputs.map((item) => ({
 }));
 
 const recentKeywords = ["부업", "배당주", "스마트스토어", "블로그 수익", "키워드 검색량"];
+const tablePageSize = 20;
+
+type KeywordTabId = "summary" | "briefing" | "cards" | "ranking" | "related";
+
+const keywordTabs: Array<{ id: KeywordTabId; label: string }> = [
+  { id: "summary", label: "요약" },
+  { id: "briefing", label: "AI 브리핑" },
+  { id: "cards", label: "키워드 카드" },
+  { id: "ranking", label: "상승 키워드" },
+  { id: "related", label: "상세 표" },
+];
+
+const minVolumeOptions = [
+  { label: "전체", value: 0 },
+  { label: "100+", value: 100 },
+  { label: "500+", value: 500 },
+  { label: "1000+", value: 1000 },
+];
+
+function isKeywordTab(value: string | null): value is KeywordTabId {
+  return keywordTabs.some((tab) => tab.id === value);
+}
 
 function formatNumber(value: number) {
   return value.toLocaleString("ko-KR");
+}
+
+function formatUpdatedAt(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "집계 준비 중";
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${date.getMonth() + 1}월 ${date.getDate()}일 ${hours}:${minutes} 기준`;
 }
 
 function competitionScore(value: string) {
@@ -98,31 +128,78 @@ function gradeMessage(grade: string) {
   return "경쟁 강함";
 }
 
+const gradeCriteria = [
+  { grade: "S", label: "82점 이상", description: "검색량 대비 경쟁 부담이 매우 낮음" },
+  { grade: "A", label: "68점 이상", description: "진입 여지가 충분함" },
+  { grade: "B", label: "52점 이상", description: "경쟁 보통" },
+  { grade: "C", label: "36점 이상", description: "경쟁이 다소 치열함" },
+  { grade: "D", label: "36점 미만", description: "경쟁 강함" },
+];
+
+function gradeBadgeLabel(grade: string) {
+  return `${grade}등급 · ${gradeMessage(grade)}`;
+}
+
 function competitionTone(value: string) {
   if (value === "낮음") return "easy";
   if (value === "중간") return "mid";
   return "hard";
 }
 
+function hasNumber(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function volumeBarWidth(volume: number, maxVolume: number) {
+  if (volume <= 0 || maxVolume <= 0) return 0;
+  const ratio = Math.log10(volume + 1) / Math.log10(maxVolume + 1);
+  return Math.max(4, Math.round(ratio * 100));
+}
+
 export default function KeywordTool() {
   const [keyword, setKeyword] = useState("부업");
   const [submittedKeyword, setSubmittedKeyword] = useState("부업");
   const [sort, setSort] = useState<"volume" | "competition">("volume");
+  const [activeTab, setActiveTab] = useState<KeywordTabId>(() => {
+    if (typeof window === "undefined") return "summary";
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    return isKeywordTab(tab) ? tab : "summary";
+  });
+  const [filterText, setFilterText] = useState("");
+  const [debouncedFilterText, setDebouncedFilterText] = useState("");
+  const [minVolume, setMinVolume] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(tablePageSize);
+  const [gradeGuideOpen, setGradeGuideOpen] = useState(false);
+  const [showTopButton, setShowTopButton] = useState(false);
   const [data, setData] = useState<KeywordApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const tabRefs = useRef<Record<KeywordTabId, HTMLButtonElement | null>>({
+    summary: null,
+    briefing: null,
+    cards: null,
+    ranking: null,
+    related: null,
+  });
 
   const baseResults = data?.results.length ? data.results : relatedSeeds;
   const results = [...baseResults].sort((a, b) => sort === "volume"
     ? b.total - a.total
     : competitionScore(a.competition) - competitionScore(b.competition));
+  const normalizedFilterText = debouncedFilterText.trim().toLocaleLowerCase("ko-KR");
+  const filteredResults = results.filter((item) => (
+    item.total >= minVolume
+    && (normalizedFilterText.length === 0 || item.keyword.toLocaleLowerCase("ko-KR").includes(normalizedFilterText))
+  ));
+  const visibleResults = filteredResults.slice(0, visibleCount);
+  const visibleResultCount = Math.min(visibleCount, filteredResults.length);
 
   const primary = results[0];
   const totalVolume = results.reduce((sum, item) => sum + item.total, 0);
   const easyCount = results.filter((item) => item.competition === "낮음").length;
   const hardCount = results.filter((item) => item.competition === "높음").length;
   const averageMobileRate = Math.round(results.reduce((sum, item) => sum + item.mobileRate, 0) / Math.max(results.length, 1));
-  const updatedAt = data ? new Date(data.updatedAt).toLocaleString("ko-KR") : "샘플 데이터";
+  const updatedAt = data ? formatUpdatedAt(data.updatedAt) : "샘플 데이터";
   const score = keywordScore(primary);
   const grade = keywordGrade(score);
   const gradeLevel = gradeStep(grade);
@@ -130,16 +207,125 @@ export default function KeywordTool() {
   const forecast = Math.round(primary.total * 1.08);
   const adEfficiency = primary.competition === "낮음" ? "좋음" : primary.competition === "중간" ? "보통" : "주의";
   const opportunity = score >= 68 ? "우선 검토" : score >= 52 ? "세부 키워드 검토" : "롱테일 권장";
-  const topRelated = results.slice(0, 8);
-  const risingKeywords = results.slice(0, 5);
-  const maxRelatedVolume = Math.max(...topRelated.map((item) => item.total), 1);
+  const topRelated = results.slice(0, 4);
+  const volumeRankKeywords = results.slice(0, 5);
+  const distributionKeywords = results.slice(0, 8);
+  const distributionMaxVolume = Math.max(...distributionKeywords.map((item) => item.total), 1);
+  const maxRelatedVolume = Math.max(...filteredResults.map((item) => item.total), 1);
   const documentStats = data?.openApi?.documentStats ?? null;
   const trend = data?.openApi?.trend ?? [];
-  const hasOpenApi = data?.openApi?.availability.status === "available";
+  const hasDocumentTotal = hasNumber(documentStats?.total);
+  const hasSaturationIndex = hasNumber(documentStats?.saturationIndex);
   const latestTrend = trend.at(-1);
   const previousTrend = trend.at(-2);
   const trendDelta = latestTrend && previousTrend ? Math.round((latestTrend.ratio - previousTrend.ratio) * 10) / 10 : null;
   const trendLabel = trendDelta === null ? "데이터 없음" : trendDelta >= 0 ? `+${trendDelta}` : `${trendDelta}`;
+  const summaryCards = [
+    {
+      key: "grade",
+      className: `metric-card grade-card grade-${gradeToneName}`,
+      content: (
+        <>
+          <div className="grade-head">
+            <span>키워드 등급</span>
+            <b>{grade} · {gradeMessage(grade)}</b>
+          </div>
+          <div
+            className="grade-segments"
+            role="img"
+            aria-label={`5단계 중 ${gradeLevel}단계, ${grade}등급`}
+          >
+            {[1, 2, 3, 4, 5].map((step) => (
+              <i key={step} className={step <= gradeLevel ? "active" : ""} />
+            ))}
+          </div>
+          <div className="grade-labels" aria-hidden="true">
+            <span>S 쉬움</span><span>A</span><span>B</span><span>C</span><span>D 어려움</span>
+          </div>
+        </>
+      ),
+    },
+    {
+      key: "ad",
+      className: "metric-card",
+      content: (
+        <>
+          <span>검색 광고 효율</span>
+          <strong>{adEfficiency}</strong>
+          <small>
+            <em className={`competition-pill ${competitionTone(primary.competition)}`}>{primary.competition}</em>
+            광고 깊이 {primary.bid === null ? "집계 준비 중" : primary.bid}
+          </small>
+        </>
+      ),
+    },
+    {
+      key: "related",
+      className: "metric-card",
+      content: (
+        <>
+          <span>연관 키워드</span>
+          <strong className="metric-number">{formatNumber(results.length)}</strong>
+          <small>{loading ? "조회 중" : `최종 갱신 · ${updatedAt}`}</small>
+        </>
+      ),
+    },
+    ...(hasDocumentTotal ? [{
+      key: "documents",
+      className: "metric-card",
+      content: (
+        <>
+          <span>콘텐츠 문서 수</span>
+          <strong className="metric-number">{formatNumber(documentStats.total)}</strong>
+          <small>블로그·뉴스·카페·웹문서 합계</small>
+        </>
+      ),
+    }] : []),
+    ...(hasSaturationIndex ? [{
+      key: "saturation",
+      className: "metric-card",
+      content: (
+        <>
+          <span>콘텐츠 포화도</span>
+          <strong className="metric-number">{documentStats.saturationIndex}%</strong>
+          <small>문서 수 ÷ 월간 검색량 기준</small>
+        </>
+      ),
+    }] : []),
+  ];
+  const aiMetrics = [
+    { label: "기회 점수", value: score },
+    { label: "낮은 경쟁", value: easyCount },
+    { label: "높은 경쟁", value: hardCount },
+    { label: "모바일 평균", value: `${averageMobileRate}%` },
+    ...(trendDelta === null ? [] : [{ label: "트렌드", value: trendLabel }]),
+    ...(hasDocumentTotal ? [{ label: "문서 합계", value: formatNumber(documentStats.total) }] : []),
+  ];
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedFilterText(filterText);
+      setVisibleCount(tablePageSize);
+    }, 200);
+
+    return () => window.clearTimeout(timeout);
+  }, [filterText]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", activeTab);
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [activeTab]);
+
+  useEffect(() => {
+    const updateTopButton = () => {
+      setShowTopButton(window.scrollY > 400);
+    };
+
+    updateTopButton();
+    window.addEventListener("scroll", updateTopButton, { passive: true });
+    return () => window.removeEventListener("scroll", updateTopButton);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -156,8 +342,9 @@ export default function KeywordTool() {
       })
       .catch((fetchError: unknown) => {
         if (!cancelled && !(fetchError instanceof DOMException && fetchError.name === "AbortError")) {
+          console.warn("Keyword data fetch failed", fetchError);
           setData(null);
-          setError(fetchError instanceof Error ? fetchError.message : "키워드 데이터를 불러오지 못했습니다.");
+          setError("집계 준비 중");
         }
       })
       .finally(() => {
@@ -174,7 +361,35 @@ export default function KeywordTool() {
     event.preventDefault();
     setLoading(true);
     setError(null);
+    setVisibleCount(tablePageSize);
     setSubmittedKeyword(keyword.trim() || "키워드");
+  }
+
+  function selectKeyword(nextKeyword: string) {
+    setKeyword(nextKeyword);
+    setLoading(true);
+    setError(null);
+    setVisibleCount(tablePageSize);
+    setSubmittedKeyword(nextKeyword);
+  }
+
+  function focusTab(tabId: KeywordTabId) {
+    setActiveTab(tabId);
+    window.setTimeout(() => tabRefs.current[tabId]?.focus(), 0);
+  }
+
+  function handleTabKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, index: number) {
+    const lastIndex = keywordTabs.length - 1;
+    let nextIndex = index;
+
+    if (event.key === "ArrowRight") nextIndex = index === lastIndex ? 0 : index + 1;
+    else if (event.key === "ArrowLeft") nextIndex = index === 0 ? lastIndex : index - 1;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = lastIndex;
+    else return;
+
+    event.preventDefault();
+    focusTab(keywordTabs[nextIndex].id);
   }
 
   return (
@@ -202,7 +417,7 @@ export default function KeywordTool() {
         </form>
         <div className="keyword-recent" aria-label="최근 키워드">
           {recentKeywords.map((item) => (
-            <button key={item} type="button" onClick={() => { setKeyword(item); setLoading(true); setError(null); setSubmittedKeyword(item); }}>
+            <button key={item} type="button" onClick={() => selectKeyword(item)}>
               {item}
             </button>
           ))}
@@ -210,71 +425,99 @@ export default function KeywordTool() {
       </section>
 
       <div className="keyword-tabs" role="tablist" aria-label="분석 메뉴">
-        <a className="active" href="#overview" role="tab" aria-selected="true">요약</a>
-        <a href="#briefing" role="tab" aria-selected="false">AI 브리핑</a>
-        <a href="#cards" role="tab" aria-selected="false">키워드 카드</a>
-        <a href="#ranking" role="tab" aria-selected="false">상승 키워드</a>
-        <a href="#related" role="tab" aria-selected="false">상세 표</a>
+        {keywordTabs.map((tab, index) => (
+          <button
+            key={tab.id}
+            ref={(node) => { tabRefs.current[tab.id] = node; }}
+            id={`keyword-tab-${tab.id}`}
+            type="button"
+            role="tab"
+            className={activeTab === tab.id ? "active" : ""}
+            aria-selected={activeTab === tab.id}
+            aria-controls={`keyword-panel-${tab.id}`}
+            tabIndex={activeTab === tab.id ? 0 : -1}
+            onClick={() => setActiveTab(tab.id)}
+            onKeyDown={(event) => handleTabKeyDown(event, index)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      <section className="keyword-summary" id="overview" aria-label="검색량 요약">
-        <article className="metric-card metric-card-wide">
-          <span>월간 검색량</span>
-          <strong className="metric-number">{formatNumber(primary.total)}</strong>
-          <small>PC {formatNumber(primary.pc)} · 모바일 {formatNumber(primary.mobile)}</small>
-          <div className="volume-ratio" aria-label={`모바일 ${primary.mobileRate}%, PC ${100 - primary.mobileRate}%`}>
-            <span style={{ width: `${primary.mobileRate}%` }} />
-          </div>
-          <div className="volume-legend">
-            <span>Mobile {formatNumber(primary.mobile)}</span>
-            <span>PC {formatNumber(primary.pc)}</span>
-          </div>
-        </article>
-        <article className={`metric-card grade-card grade-${gradeToneName}`}>
-          <div className="grade-head">
-            <span>키워드 등급</span>
-            <b>{grade} · {gradeMessage(grade)}</b>
-          </div>
-          <div
-            className="grade-segments"
-            role="img"
-            aria-label={`5단계 중 ${gradeLevel}단계, ${grade}등급`}
-          >
-            {[1, 2, 3, 4, 5].map((step) => (
-              <i key={step} className={step <= gradeLevel ? "active" : ""} />
+      {activeTab === "summary" && (
+        <section
+          className="keyword-tab-panel"
+          id="keyword-panel-summary"
+          role="tabpanel"
+          aria-labelledby="keyword-tab-summary"
+          tabIndex={0}
+        >
+          <section className="keyword-summary" aria-label="검색량 요약">
+            <article className="metric-card metric-card-wide">
+              <span>월간 검색량</span>
+              <strong className="metric-number">{formatNumber(primary.total)}</strong>
+              <small>PC {formatNumber(primary.pc)} · 모바일 {formatNumber(primary.mobile)}</small>
+              <div className="volume-ratio" aria-label={`모바일 ${primary.mobileRate}%, PC ${100 - primary.mobileRate}%`}>
+                <span style={{ width: `${primary.mobileRate}%` }} />
+              </div>
+              <div className="volume-legend">
+                <span>Mobile {formatNumber(primary.mobile)}</span>
+                <span>PC {formatNumber(primary.pc)}</span>
+              </div>
+            </article>
+            {summaryCards.map((card, index) => (
+              <article
+                key={card.key}
+                className={`${card.className}${index === summaryCards.length - 1 && summaryCards.length % 2 === 1 ? " metric-card-fill" : ""}`}
+              >
+                {card.content}
+              </article>
             ))}
-          </div>
-          <div className="grade-labels" aria-hidden="true">
-            <span>S 쉬움</span><span>A</span><span>B</span><span>C</span><span>D 어려움</span>
-          </div>
-        </article>
-        <article className="metric-card">
-          <span>검색 광고 효율</span>
-          <strong>{adEfficiency}</strong>
-          <small>
-            <em className={`competition-pill ${competitionTone(primary.competition)}`}>{primary.competition}</em>
-            광고 깊이 {primary.bid ?? "-"}
-          </small>
-        </article>
-        <article className="metric-card">
-          <span>연관 키워드</span>
-          <strong className="metric-number">{formatNumber(results.length)}</strong>
-          <small>{loading ? "조회 중" : `최종 갱신 · ${updatedAt}`}</small>
-        </article>
-        <article className="metric-card">
-          <span>콘텐츠 문서 수</span>
-          <strong className="metric-number">{documentStats?.total === null || documentStats?.total === undefined ? "-" : formatNumber(documentStats.total)}</strong>
-          <small>{hasOpenApi ? "블로그·뉴스·카페·웹문서 합계" : "네이버 OpenAPI 연결 대기"}</small>
-        </article>
-        <article className="metric-card">
-          <span>콘텐츠 포화도</span>
-          <strong className="metric-number">{documentStats?.saturationIndex === null || documentStats?.saturationIndex === undefined ? "-" : `${documentStats.saturationIndex}%`}</strong>
-          <small>{hasOpenApi ? "문서 수 ÷ 월간 검색량 기준" : data?.openApi?.availability.message ?? "트렌드 데이터 대기"}</small>
-        </article>
-      </section>
-      {error && <div className="keyword-alert" role="status">{error} 현재는 샘플 구조를 표시합니다.</div>}
+          </section>
+          <div className="ad-slot keyword-summary-ad" data-slot="keyword-summary-after" aria-hidden="true" />
+          {error && <div className="keyword-alert" role="status">{error}. 현재는 샘플 데이터를 표시합니다.</div>}
 
-      <section className="keyword-ai-card" id="briefing" aria-label="AI 브리핑">
+          <section className="keyword-grid">
+            <article id="distribution">
+              <h2>검색량 분포</h2>
+              <div className="keyword-chart keyword-distribution" aria-label="상위 8개 관련 키워드 검색량 분포">
+                {distributionKeywords.map((item) => (
+                  <div className="distribution-row" key={item.keyword} title={`${item.keyword} ${formatNumber(item.total)}회`}>
+                    <span className="distribution-label">{item.keyword}</span>
+                    <span className="distribution-bar" aria-hidden="true">
+                      <i style={{ width: `${volumeBarWidth(item.total, distributionMaxVolume)}%` }} />
+                    </span>
+                    <strong>{formatNumber(item.total)}</strong>
+                  </div>
+                ))}
+              </div>
+            </article>
+            <article id="trend">
+              <h2>상황 분석</h2>
+              <p>{submittedKeyword} 키워드는 현재 {formatNumber(primary.total)}회 규모의 월간 검색량을 보입니다. 경쟁도는 {primary.competition}이며, {opportunity} 대상으로 분류했습니다.</p>
+              <dl>
+                <div><dt>대표 키워드</dt><dd>{primary.keyword}</dd></div>
+                <div><dt>모바일 비중</dt><dd>{primary.mobileRate}%</dd></div>
+                <div><dt>참고 예상치</dt><dd>{formatNumber(forecast)}</dd></div>
+                <div><dt>연관 총 검색량</dt><dd>{formatNumber(totalVolume)}</dd></div>
+                {hasDocumentTotal && <div><dt>문서 수</dt><dd>{formatNumber(documentStats.total)}</dd></div>}
+                {hasSaturationIndex && <div><dt>포화도</dt><dd>{documentStats.saturationIndex}%</dd></div>}
+                <div><dt>추천 확장어</dt><dd>{topRelated.slice(1, 4).map((item) => item.keyword).join(", ") || "-"}</dd></div>
+              </dl>
+            </article>
+          </section>
+        </section>
+      )}
+
+      {activeTab === "briefing" && (
+      <section
+        className="keyword-ai-card"
+        id="keyword-panel-briefing"
+        role="tabpanel"
+        aria-labelledby="keyword-tab-briefing"
+        tabIndex={0}
+        aria-label="AI 브리핑"
+      >
         <div className="keyword-panel-head">
           <div>
             <p>AI BRIEFING</p>
@@ -287,16 +530,22 @@ export default function KeywordTool() {
           경쟁도는 {primary.competition}이고, 현재는 <b>{opportunity}</b> 전략이 적합합니다.
         </p>
         <div className="keyword-ai-metrics">
-          <div><span>기회 점수</span><strong>{score}</strong></div>
-          <div><span>낮은 경쟁</span><strong>{easyCount}</strong></div>
-          <div><span>높은 경쟁</span><strong>{hardCount}</strong></div>
-          <div><span>모바일 평균</span><strong>{averageMobileRate}%</strong></div>
-          <div><span>트렌드</span><strong>{trendLabel}</strong></div>
-          <div><span>문서 합계</span><strong>{documentStats?.total === null || documentStats?.total === undefined ? "-" : formatNumber(documentStats.total)}</strong></div>
+          {aiMetrics.map((item) => (
+            <div key={item.label}><span>{item.label}</span><strong>{item.value}</strong></div>
+          ))}
         </div>
       </section>
+      )}
 
-      <section className="keyword-card-section" id="cards" aria-label="추천 키워드 카드">
+      {activeTab === "cards" && (
+      <section
+        className="keyword-card-section"
+        id="keyword-panel-cards"
+        role="tabpanel"
+        aria-labelledby="keyword-tab-cards"
+        tabIndex={0}
+        aria-label="추천 키워드 카드"
+      >
         <div className="keyword-section-title">
           <p>추천 키워드 카드</p>
           <h2>관련 키워드</h2>
@@ -306,17 +555,18 @@ export default function KeywordTool() {
             const itemScore = keywordScore(item);
             const itemGrade = keywordGrade(itemScore);
             const itemTone = gradeTone(itemGrade);
+            const itemGradeLabel = gradeBadgeLabel(itemGrade);
             return (
               <button
                 className="related-keyword-card"
                 key={item.keyword}
                 type="button"
-                onClick={() => { setKeyword(item.keyword); setLoading(true); setError(null); setSubmittedKeyword(item.keyword); }}
+                onClick={() => selectKeyword(item.keyword)}
               >
                 <span><i aria-hidden="true">K</i>{item.keyword}</span>
                 <strong>{formatNumber(item.total)}</strong>
                 <small>PC {formatNumber(item.pc)} · Mobile {formatNumber(item.mobile)}</small>
-                <em className={itemTone}>{itemGrade}</em>
+                <em className={itemTone} title={itemGradeLabel} aria-label={itemGradeLabel}>{itemGrade}</em>
                 <div className="volume-ratio" aria-hidden="true">
                   <span style={{ width: `${item.mobileRate}%` }} />
                 </div>
@@ -325,99 +575,130 @@ export default function KeywordTool() {
           })}
         </div>
       </section>
+      )}
 
-      <section className="keyword-ranking" id="ranking" aria-label="상승 키워드">
+      {activeTab === "ranking" && (
+      <section
+        className="keyword-ranking"
+        id="keyword-panel-ranking"
+        role="tabpanel"
+        aria-labelledby="keyword-tab-ranking"
+        tabIndex={0}
+        aria-label="검색량 상위 키워드"
+      >
         <div className="keyword-section-title">
           <p>실시간 참고</p>
-          <h2>인기 상승 키워드</h2>
+          <h2>검색량 상위 키워드</h2>
         </div>
         <div className="ranking-list">
-          {risingKeywords.map((item, index) => (
+          {volumeRankKeywords.map((item, index) => (
             <button
               key={item.keyword}
               type="button"
-              onClick={() => { setKeyword(item.keyword); setLoading(true); setError(null); setSubmittedKeyword(item.keyword); }}
+              onClick={() => selectKeyword(item.keyword)}
             >
               <span>{String(index + 1).padStart(2, "0")}</span>
               <b>{item.keyword}</b>
-              <em>▲ {Math.max(1, Math.round((item.total / Math.max(primary.total, 1)) * 10))}%</em>
-              <small>{formatNumber(item.total)}</small>
+              <em>{formatNumber(item.total)}</em>
+              <small>검색량</small>
             </button>
           ))}
         </div>
       </section>
+      )}
 
-      <section className="keyword-panel" id="related">
+      {activeTab === "related" && (
+      <section
+        className="keyword-panel"
+        id="keyword-panel-related"
+        role="tabpanel"
+        aria-labelledby="keyword-tab-related"
+        tabIndex={0}
+      >
         <div className="keyword-panel-head">
           <div>
             <p>KEYWORD DETAIL</p>
             <h2>키워드 분석 표</h2>
           </div>
           <div className="keyword-actions">
-            <button type="button" className={sort === "volume" ? "active" : ""} onClick={() => setSort("volume")}>검색량순</button>
-            <button type="button" className={sort === "competition" ? "active" : ""} onClick={() => setSort("competition")}>경쟁도순</button>
+            <button type="button" className={sort === "volume" ? "active" : ""} onClick={() => { setSort("volume"); setVisibleCount(tablePageSize); }}>검색량순</button>
+            <button type="button" className={sort === "competition" ? "active" : ""} onClick={() => { setSort("competition"); setVisibleCount(tablePageSize); }}>경쟁도순</button>
             <button type="button">CSV</button>
+            <div className="keyword-grade-guide">
+              <button
+                type="button"
+                aria-expanded={gradeGuideOpen}
+                aria-controls="keyword-grade-popover"
+                onClick={() => setGradeGuideOpen((open) => !open)}
+              >
+                등급 기준
+              </button>
+              {gradeGuideOpen && (
+                <div className="grade-popover" id="keyword-grade-popover" role="tooltip">
+                  {gradeCriteria.map((item) => (
+                    <p key={item.grade}><b>{item.grade}</b><span>{item.label}</span><small>{item.description}</small></p>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
+        </div>
+
+        <div className="keyword-table-filters" aria-label="키워드 표 필터">
+          <label>
+            <span>키워드 검색</span>
+            <input
+              type="search"
+              value={filterText}
+              onChange={(event) => setFilterText(event.target.value)}
+              placeholder="포함할 키워드"
+            />
+          </label>
+          <label>
+            <span>최소 검색량</span>
+            <select value={minVolume} onChange={(event) => { setMinVolume(Number(event.target.value)); setVisibleCount(tablePageSize); }}>
+              {minVolumeOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <div className="keyword-table-wrap">
           <div className="keyword-table">
-            {results.map((item) => {
+            {filteredResults.length === 0 ? (
+              <div className="keyword-empty" role="status">조건에 맞는 키워드가 없습니다</div>
+            ) : visibleResults.map((item, index) => {
               const itemScore = keywordScore(item);
               const itemGrade = keywordGrade(itemScore);
               const itemTone = gradeTone(itemGrade);
+              const gradeLabel = gradeBadgeLabel(itemGrade);
               return (
-                <a className="keyword-row" href="#search" key={item.keyword} onClick={() => { setKeyword(item.keyword); setLoading(true); setError(null); setSubmittedKeyword(item.keyword); }}>
-                  <span className="keyword-row-name">{item.keyword}</span>
-                  <span className="keyword-row-bar" aria-hidden="true"><i style={{ width: `${Math.max(6, Math.round((item.total / maxRelatedVolume) * 100))}%` }} /></span>
-                  <span className="keyword-row-volume">{formatNumber(item.total)}</span>
-                  <span className={`keyword-row-grade ${itemTone}`}>{itemGrade}</span>
-                </a>
+                <Fragment key={item.keyword}>
+                  <a className="keyword-row" href="#search" onClick={() => selectKeyword(item.keyword)}>
+                    <span className="keyword-row-name">{item.keyword}</span>
+                    <span className="keyword-row-bar" aria-hidden="true"><i style={{ width: `${volumeBarWidth(item.total, maxRelatedVolume)}%` }} /></span>
+                    <span className="keyword-row-volume">{formatNumber(item.total)}</span>
+                    <span className={`keyword-row-grade ${itemTone}`} title={gradeLabel} aria-label={gradeLabel}>{itemGrade}</span>
+                  </a>
+                  {(index + 1) % tablePageSize === 0 && (
+                    <div className="ad-slot keyword-row-ad" data-slot={`keyword-table-${index + 1}`} aria-hidden="true" />
+                  )}
+                </Fragment>
               );
             })}
           </div>
         </div>
+        <div className="keyword-table-footer">
+          <span>{formatNumber(visibleResultCount)} / {formatNumber(filteredResults.length)}</span>
+          {visibleResultCount < filteredResults.length && (
+            <button type="button" onClick={() => setVisibleCount((count) => count + tablePageSize)}>
+              더보기(+20)
+            </button>
+          )}
+        </div>
       </section>
-
-      <section className="keyword-grid">
-        <article id="distribution">
-          <h2>{trend.length > 0 ? "검색 트렌드" : "검색량 분포"}</h2>
-          <div className="keyword-chart keyword-distribution" aria-label="관련 키워드 검색량 분포">
-            {trend.length > 0
-              ? trend.map((item) => (
-                <span
-                  key={item.period}
-                  title={`${item.period} ${item.ratio}`}
-                  style={{ height: `${Math.max(12, Math.round(item.ratio))}%` }}
-                >
-                  <b>{item.period.slice(5)}</b>
-                </span>
-              ))
-              : topRelated.map((item) => (
-                <span
-                  key={item.keyword}
-                  title={`${item.keyword} ${formatNumber(item.total)}회`}
-                  style={{ height: `${Math.max(12, Math.round((item.total / maxRelatedVolume) * 100))}%` }}
-                >
-                  <b>{item.keyword}</b>
-                </span>
-              ))}
-          </div>
-        </article>
-        <article id="trend">
-          <h2>상황 분석</h2>
-          <p>{submittedKeyword} 키워드는 현재 {formatNumber(primary.total)}회 규모의 월간 검색량을 보입니다. 경쟁도는 {primary.competition}이며, {opportunity} 대상으로 분류했습니다.</p>
-          <dl>
-            <div><dt>대표 키워드</dt><dd>{primary.keyword}</dd></div>
-            <div><dt>모바일 비중</dt><dd>{primary.mobileRate}%</dd></div>
-            <div><dt>참고 예상치</dt><dd>{formatNumber(forecast)}</dd></div>
-            <div><dt>연관 총 검색량</dt><dd>{formatNumber(totalVolume)}</dd></div>
-            <div><dt>문서 수</dt><dd>{documentStats?.total === null || documentStats?.total === undefined ? "-" : formatNumber(documentStats.total)}</dd></div>
-            <div><dt>포화도</dt><dd>{documentStats?.saturationIndex === null || documentStats?.saturationIndex === undefined ? "-" : `${documentStats.saturationIndex}%`}</dd></div>
-            <div><dt>추천 확장어</dt><dd>{topRelated.slice(1, 4).map((item) => item.keyword).join(", ") || "-"}</dd></div>
-          </dl>
-        </article>
-      </section>
+      )}
 
       <footer className="keyword-footer">
         <div>
@@ -431,6 +712,13 @@ export default function KeywordTool() {
           <Link href="/contact">문의</Link>
         </nav>
       </footer>
+      <button
+        type="button"
+        className={`scroll-top-button${showTopButton ? " visible" : ""}`}
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      >
+        맨 위로
+      </button>
     </main>
   );
 }

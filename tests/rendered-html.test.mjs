@@ -56,8 +56,20 @@ test("root renders the keyword briefing home", async () => {
   assert.match(html, /AI 브리핑 키워드 대시보드/);
   assert.match(html, /검색량·경쟁도·연관 키워드/);
   assert.match(html, /keyword-search/);
-  assert.match(html, /related-keyword-card/);
-  assert.match(html, /키워드 분석 표/);
+  assert.match(html, /role="tablist"/);
+  assert.match(html, /aria-controls="keyword-panel-related"/);
+  assert.match(html, /검색량 분포/);
+  assert.match(html, /data-slot="keyword-summary-after"/);
+  assert.doesNotMatch(html, /네이버 OpenAPI 연결 대기|네이버 개발자센터 API 인증에 실패했습니다/);
+});
+
+test("/dl renders the keyword lab route", async () => {
+  const response = await render("/dl");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /키워드랩/);
+  assert.match(html, /AI 브리핑 키워드 대시보드/);
+  assert.match(html, /keyword-tabs/);
 });
 
 test("Cloudflare Pages output includes the advanced-mode SSR worker", async () => {
