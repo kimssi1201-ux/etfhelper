@@ -48,15 +48,28 @@ function displayName(stock) {
     : `${stock.nameKo}(${stock.symbol})`;
 }
 
-test("root renders the community brief home", async () => {
+test("root renders the keyword briefing home", async () => {
   const response = await render("/");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /모아봄/);
-  assert.match(html, /실시간 커뮤니티 인기글/);
-  assert.match(html, /베스트 보기/);
-  assert.match(html, /hot-post-row/);
-  assert.match(html, /원문·댓글·이미지를 무단 복제하지 않으며/);
+  assert.match(html, /키워드랩/);
+  assert.match(html, /AI 브리핑 키워드 대시보드/);
+  assert.match(html, /검색량·경쟁도·연관 키워드/);
+  assert.match(html, /keyword-search/);
+  assert.match(html, /related-keyword-card/);
+  assert.match(html, /키워드 분석 표/);
+});
+
+test("Cloudflare Pages output includes the advanced-mode SSR worker", async () => {
+  const [workerSource, assetsIgnore] = await Promise.all([
+    readFile(new URL("../dist/client/_worker.js/index.js", import.meta.url), "utf8"),
+    readFile(new URL("../dist/client/.assetsignore", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(workerSource, /export\{[\s\S]*default/);
+  assert.match(workerSource, /import\(`\.\/ssr\/index\.js`\)/);
+  assert.match(assetsIgnore, /^_worker\.js$/m);
+  assert.match(assetsIgnore, /^_worker\.js\/\*\*$/m);
 });
 
 test("every stock in the shared verified universe server-renders content, SEO, structured data, and disclaimer", async (t) => {

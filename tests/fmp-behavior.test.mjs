@@ -168,6 +168,7 @@ async function readTextTree(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const chunks = await Promise.all(entries.map(async (entry) => {
     const location = new URL(`${entry.name}${entry.isDirectory() ? "/" : ""}`, directory);
+    if (entry.isDirectory() && entry.name === "_worker.js") return "";
     if (entry.isDirectory()) return readTextTree(location);
     if (!/\.(?:css|html|js|json|map|mjs|ts|tsx)$/.test(entry.name)) return "";
     return readFile(location, "utf8");
