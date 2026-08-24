@@ -146,6 +146,37 @@ test("/dl renders the keyword lab route", async () => {
   assert.match(html, /keyword-tabs/);
 });
 
+test("guide pages render markdown templates with keyword links, TOC, and Article JSON-LD", async () => {
+  const listResponse = await render("/guide");
+  assert.equal(listResponse.status, 200);
+  const listHtml = await listResponse.text();
+  assert.match(listHtml, /guide-shell/);
+  assert.match(listHtml, /가이드 작성 템플릿/);
+  assert.match(listHtml, /\/guide\/guide-template/);
+
+  const articleResponse = await render("/guide/guide-template");
+  assert.equal(articleResponse.status, 200);
+  const articleHtml = await articleResponse.text();
+  const canonicalUrl = `${ORIGIN}/guide/guide-template`;
+
+  assert.ok(articleHtml.includes("<title>가이드 작성 템플릿 | 키워드랩 가이드</title>"));
+  assert.ok(tagHasAttributes(articleHtml, "link", { rel: "canonical", href: canonicalUrl }));
+  assert.match(articleHtml, /여기에 본문을 작성합니다/);
+  assert.match(articleHtml, /목차/);
+  assert.match(articleHtml, /href="#section-1"/);
+  assert.match(articleHtml, /\/keyword\/%EB%B6%80%EC%97%85/);
+  assert.match(articleHtml, /관련 키워드/);
+  assert.match(articleHtml, /Article/);
+  assert.match(articleHtml, /datePublished/);
+  assert.match(articleHtml, /dateModified/);
+
+  const sitemapResponse = await render("/sitemap.xml");
+  assert.equal(sitemapResponse.status, 200);
+  const sitemapXml = await sitemapResponse.text();
+  assert.match(sitemapXml, /<loc>https:\/\/fastincome\.kr\/guide<\/loc>/);
+  assert.match(sitemapXml, /<loc>https:\/\/fastincome\.kr\/guide\/guide-template<\/loc>/);
+});
+
 test("ranking pages server-render without mock data when D1 is empty", async () => {
   const paths = ["/ranking", "/ranking/rising", "/ranking/side-income-finance"];
 

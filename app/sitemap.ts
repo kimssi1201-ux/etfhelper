@@ -4,12 +4,14 @@ import { loadKeywordPageData } from "@/app/keyword-page-data";
 import { keywordPath, popularKeywords } from "@/lib/keyword-shared";
 import { rankingCategories } from "@/lib/ranking-candidates";
 import { getRankingResult, getSitemapKeywordEntries } from "@/lib/ranking-store";
+import { getGuidePosts, guidePath } from "@/lib/guide";
 
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = "https://fastincome.kr";
-  const staticPages = ["dl", "about", "privacy", "terms", "contact"];
+  const staticPages = ["dl", "guide", "about", "privacy", "terms", "contact"];
+  const guidePosts = getGuidePosts();
   const rankingResult = await getRankingResult({ limit: 1 });
   const rankingLastModified = rankingResult.collectedAt ? new Date(rankingResult.collectedAt) : new Date();
   const rankingPages = [
@@ -57,6 +59,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: entry.lastModified,
       changeFrequency: "daily" as const,
       priority: 0.75,
+    })),
+    ...guidePosts.map((post) => ({
+      url: `${base}${guidePath(post.slug)}`,
+      lastModified: post.date ? new Date(post.date) : new Date(),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
     })),
     ...keywordEntries.filter((entry): entry is NonNullable<typeof entry> => entry !== null),
   ];
