@@ -131,6 +131,9 @@ test("root renders the keyword briefing home", async () => {
   assert.match(html, /keyword-search/);
   assert.match(html, /role="tablist"/);
   assert.match(html, /aria-controls="keyword-panel-related"/);
+  assert.match(html, /className="keyword-desktop-nav"|keyword-desktop-nav/);
+  assert.match(html, /aria-controls="keyword-menu-drawer"/);
+  assert.match(html, /aria-expanded=/);
   assert.match(html, /키워드 데이터를 조회 중입니다\./);
   assert.match(html, /data-slot="keyword-summary-after"/);
   assert.doesNotMatch(html, /샘플 데이터/);

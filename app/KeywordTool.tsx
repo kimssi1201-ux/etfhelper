@@ -56,6 +56,16 @@ const minVolumeOptions = [
   { label: "1000+", value: 1000 },
 ];
 
+const keywordNavItems = [
+  { label: "홈", href: "/" },
+  { label: "랭킹", href: "/ranking" },
+  { label: "가이드", href: "/guide" },
+  { label: "소개", href: "/about" },
+  { label: "개인정보처리방침", href: "/privacy" },
+  { label: "이용약관", href: "/terms" },
+  { label: "문의", href: "/contact" },
+];
+
 type KeywordToolProps = {
   historyTrend?: KeywordTrendPoint[] | null;
   initialData?: KeywordApiResponse | null;
@@ -125,7 +135,10 @@ export default function KeywordTool({
   const [loading, setLoading] = useState(!initialData && !initialError);
   const [error, setError] = useState<string | null>(initialError);
   const [requestNonce, setRequestNonce] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
   const skipInitialFetchRef = useRef(Boolean(initialData || initialError));
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const drawerRef = useRef<HTMLDivElement | null>(null);
   const tabRefs = useRef<Record<KeywordTabId, HTMLButtonElement | null>>({
     summary: null,
     briefing: null,
@@ -207,7 +220,7 @@ export default function KeywordTool({
                 <div className="metric-popover" id="keyword-grade-card-popover" role="tooltip">
                   <strong>등급 산정 기준</strong>
                   <p>검색량, 모바일 비중, 경쟁도 점수를 합산해 1~100점으로 환산한 뒤 S~D로 구분합니다.</p>
-                  <Link href="/methodology">자세한 산정 방식 보기</Link>
+                  <Link href="/methodology" prefetch={false}>자세한 산정 방식 보기</Link>
                 </div>
               )}
             </div>
@@ -223,7 +236,7 @@ export default function KeywordTool({
             ))}
           </div>
           <div className="grade-labels" aria-hidden="true">
-            <span>S 쉬움</span><span>A</span><span>B</span><span>C</span><span>D 어려움</span>
+            <span>S</span><span>A</span><span>B</span><span>C</span><span>D</span>
           </div>
         </>
       ),
@@ -250,7 +263,7 @@ export default function KeywordTool({
                 <div className="metric-popover" id="keyword-ad-card-popover" role="tooltip">
                   <strong>광고 효율 기준</strong>
                   <p>네이버 검색광고 API의 경쟁도와 광고 깊이 지표를 함께 참고해 진입 부담을 표시합니다.</p>
-                  <Link href="/methodology">지표 설명 보기</Link>
+                  <Link href="/methodology" prefetch={false}>지표 설명 보기</Link>
                 </div>
               )}
             </div>
@@ -258,7 +271,7 @@ export default function KeywordTool({
           <strong>{adEfficiency}</strong>
           <small>
             <em className={`competition-pill ${competitionTone(primary.competition)}`}>{primary.competition}</em>
-            광고 깊이 {primary.bid === null ? "집계 준비 중" : primary.bid}
+            <span className="ad-depth">광고 깊이 {primary.bid === null ? "집계 준비 중" : primary.bid}</span>
           </small>
         </>
       ),
@@ -312,7 +325,7 @@ export default function KeywordTool({
       {showEmptyLinks && (
         <nav className="keyword-empty-links" aria-label="인기 키워드">
           {popularKeywords.map((item) => (
-            <Link key={item} href={keywordPath(item)}>
+            <Link key={item} href={keywordPath(item)} prefetch={false}>
               {item}
             </Link>
           ))}
@@ -364,6 +377,70 @@ export default function KeywordTool({
     window.addEventListener("popstate", restoreFromHistory);
     return () => window.removeEventListener("popstate", restoreFromHistory);
   }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const focusableSelector = [
+      "a[href]",
+      "button:not([disabled])",
+      "input:not([disabled])",
+      "select:not([disabled])",
+      "textarea:not([disabled])",
+      "[tabindex]:not([tabindex='-1'])",
+    ].join(",");
+
+    function focusableElements() {
+      return Array.from(drawerRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? [])
+        .filter((element) => !element.hasAttribute("disabled") && element.offsetParent !== null);
+    }
+
+    function closeAndRestoreFocus() {
+      setMenuOpen(false);
+      window.setTimeout(() => menuButtonRef.current?.focus(), 0);
+    }
+
+    function handleMenuKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeAndRestoreFocus();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const focusable = focusableElements();
+      if (focusable.length === 0) {
+        event.preventDefault();
+        drawerRef.current?.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable.at(-1) ?? first;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleMenuKeyDown);
+    window.setTimeout(() => {
+      const first = focusableElements()[0];
+      if (first) first.focus();
+      else drawerRef.current?.focus();
+    }, 0);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleMenuKeyDown);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -453,10 +530,57 @@ export default function KeywordTool({
     <main className="keyword-shell">
       <header className="keyword-header" id="search">
         <div className="keyword-header-top">
-          <Link href="/" className="keyword-logo"><i aria-hidden="true">K</i> 키워드랩</Link>
-          <button className="keyword-menu" type="button" aria-label="메뉴">☰</button>
+          <Link href="/" className="keyword-logo" prefetch={false}><i aria-hidden="true">K</i> 키워드랩</Link>
+          <nav className="keyword-desktop-nav" aria-label="주요 메뉴">
+            {keywordNavItems.map((item) => (
+              <Link href={item.href} key={item.href} prefetch={false}>{item.label}</Link>
+            ))}
+          </nav>
+          <button
+            ref={menuButtonRef}
+            className="keyword-menu"
+            type="button"
+            aria-label={menuOpen ? "메뉴 닫기" : "메뉴 열기"}
+            aria-expanded={menuOpen}
+            aria-controls="keyword-menu-drawer"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            ☰
+          </button>
         </div>
       </header>
+
+      {menuOpen && (
+        <div className="keyword-drawer-layer">
+          <button
+            className="keyword-drawer-overlay"
+            type="button"
+            aria-label="메뉴 닫기"
+            onClick={() => setMenuOpen(false)}
+          />
+          <div
+            ref={drawerRef}
+            className="keyword-drawer"
+            id="keyword-menu-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="키워드랩 메뉴"
+            tabIndex={-1}
+          >
+            <div className="keyword-drawer-head">
+              <span>키워드랩 메뉴</span>
+              <button type="button" aria-label="메뉴 닫기" onClick={() => setMenuOpen(false)}>×</button>
+            </div>
+            <nav aria-label="모바일 메뉴">
+              {keywordNavItems.map((item) => (
+                <Link href={item.href} key={item.href} onClick={() => setMenuOpen(false)} prefetch={false}>
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
+        </div>
+      )}
 
       <section className="keyword-brief-hero">
         <p>AI 키워드 브리핑</p>
@@ -478,6 +602,7 @@ export default function KeywordTool({
             <Link
               key={item}
               href={keywordPath(item)}
+              prefetch={false}
               onClick={(event) => {
                 event.preventDefault();
                 selectKeyword(item);
@@ -828,11 +953,11 @@ export default function KeywordTool({
           <p>검색량 데이터는 광고 API 제공 범위와 지연 시간에 따라 달라질 수 있습니다.</p>
         </div>
         <nav aria-label="사이트 정책">
-          <Link href="/about">소개</Link>
-          <Link href="/methodology">산정 방식</Link>
-          <Link href="/privacy">개인정보처리방침</Link>
-          <Link href="/terms">이용약관</Link>
-          <Link href="/contact">문의</Link>
+          <Link href="/about" prefetch={false}>소개</Link>
+          <Link href="/methodology" prefetch={false}>산정 방식</Link>
+          <Link href="/privacy" prefetch={false}>개인정보처리방침</Link>
+          <Link href="/terms" prefetch={false}>이용약관</Link>
+          <Link href="/contact" prefetch={false}>문의</Link>
         </nav>
       </footer>
       <button
