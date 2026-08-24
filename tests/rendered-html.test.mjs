@@ -135,6 +135,7 @@ test("root renders the keyword briefing home", async () => {
   assert.match(html, /data-slot="keyword-summary-after"/);
   assert.doesNotMatch(html, /샘플 데이터/);
   assert.doesNotMatch(html, /네이버 OpenAPI 연결 대기|네이버 개발자센터 API 인증에 실패했습니다/);
+  assert.doesNotMatch(html, /pagead2\.googlesyndication|adsbygoogle/);
 });
 
 test("/dl renders the keyword lab route", async () => {
@@ -169,12 +170,44 @@ test("guide pages render markdown templates with keyword links, TOC, and Article
   assert.match(articleHtml, /Article/);
   assert.match(articleHtml, /datePublished/);
   assert.match(articleHtml, /dateModified/);
+  assert.match(articleHtml, /data-slot="guide-body-middle"/);
+  assert.match(articleHtml, /data-slot="guide-body-bottom"/);
 
   const sitemapResponse = await render("/sitemap.xml");
   assert.equal(sitemapResponse.status, 200);
   const sitemapXml = await sitemapResponse.text();
   assert.match(sitemapXml, /<loc>https:\/\/fastincome\.kr\/guide<\/loc>/);
   assert.match(sitemapXml, /<loc>https:\/\/fastincome\.kr\/guide\/guide-template<\/loc>/);
+});
+
+test("legal and methodology pages render required trust signals", async () => {
+  const pages = ["/about", "/privacy", "/terms", "/methodology", "/contact"];
+
+  for (const path of pages) {
+    const response = await render(path);
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.match(html, /legal-shell/);
+    assert.match(html, /키워드랩/);
+  }
+
+  const privacy = await (await render("/privacy")).text();
+  assert.match(privacy, /Google AdSense/);
+  assert.match(privacy, /adssettings\.google\.com/);
+  assert.match(privacy, /수집 항목/);
+  assert.match(privacy, /보관/);
+  assert.match(privacy, /contact@fastincome\.kr/);
+
+  const methodology = await (await render("/methodology")).text();
+  assert.match(methodology, /네이버 검색광고 API/);
+  assert.match(methodology, /plAvgDepth/);
+  assert.match(methodology, /검색량 점수/);
+  assert.match(methodology, /82점 이상/);
+  assert.match(methodology, /데이터 한계/);
+
+  const sitemapResponse = await render("/sitemap.xml");
+  const sitemapXml = await sitemapResponse.text();
+  assert.match(sitemapXml, /<loc>https:\/\/fastincome\.kr\/methodology<\/loc>/);
 });
 
 test("ranking pages server-render without mock data when D1 is empty", async () => {
@@ -215,6 +248,9 @@ test("keyword pages server-render unique SEO content and canonical metadata", as
     assert.match(html, /18,070/);
     assert.match(html, /4,970/);
     assert.match(html, /13,100/);
+    assert.match(html, /aria-label="키워드 등급 산정 기준"/);
+    assert.match(html, /aria-label="광고 효율 산정 기준"/);
+    assert.match(html, /\/methodology/);
     assert.ok(tagHasAttributes(html, "link", { rel: "canonical", href: canonicalUrl }));
     assert.ok(tagHasAttributes(html, "meta", { property: "og:url", content: canonicalUrl }));
     assert.match(html, /application\/ld\+json/);

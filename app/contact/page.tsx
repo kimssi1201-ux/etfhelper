@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "문의 | 키워드랩",
+  title: { absolute: "문의 | 키워드랩" },
   description: "키워드랩 서비스, 개인정보, 광고, 오류 관련 문의 안내입니다.",
 };
 
@@ -21,7 +21,7 @@ export default function ContactPage() {
             이메일: <a href="mailto:contact@fastincome.kr">contact@fastincome.kr</a>
           </p>
           <p className="legal-note">
-            도메인 메일 수신 설정이 완료되어 있어야 답변을 받을 수 있습니다. 운영자는 접수된 문의를 확인한 뒤 필요한 경우 순차적으로 답변합니다.
+            운영자는 접수된 문의를 확인한 뒤 필요한 경우 순차적으로 답변합니다. 개인정보가 포함된 문의는 답변과 분쟁 대응에 필요한 범위에서만 사용합니다.
           </p>
         </section>
         <section>

@@ -7,6 +7,7 @@ import {
   competitionTone,
   decodeKeywordParam,
   defaultKeyword,
+  distributionBarWidth,
   formatNumber,
   formatUpdatedAt,
   gradeBadgeLabel,
@@ -118,6 +119,7 @@ export default function KeywordTool({
   const [minVolume, setMinVolume] = useState(0);
   const [visibleCount, setVisibleCount] = useState(tablePageSize);
   const [gradeGuideOpen, setGradeGuideOpen] = useState(false);
+  const [metricGuideOpen, setMetricGuideOpen] = useState<"grade" | "ad" | null>(null);
   const [showTopButton, setShowTopButton] = useState(false);
   const [data, setData] = useState<KeywordApiResponse | null>(initialData);
   const [loading, setLoading] = useState(!initialData && !initialError);
@@ -190,8 +192,27 @@ export default function KeywordTool({
         <>
           <div className="grade-head">
             <span>키워드 등급</span>
-            <b>{grade} · {gradeMessage(grade)}</b>
+            <div className="metric-help">
+              <button
+                type="button"
+                className="metric-help-button"
+                aria-label="키워드 등급 산정 기준"
+                aria-expanded={metricGuideOpen === "grade"}
+                aria-controls="keyword-grade-card-popover"
+                onClick={() => setMetricGuideOpen((open) => open === "grade" ? null : "grade")}
+              >
+                ?
+              </button>
+              {metricGuideOpen === "grade" && (
+                <div className="metric-popover" id="keyword-grade-card-popover" role="tooltip">
+                  <strong>등급 산정 기준</strong>
+                  <p>검색량, 모바일 비중, 경쟁도 점수를 합산해 1~100점으로 환산한 뒤 S~D로 구분합니다.</p>
+                  <Link href="/methodology">자세한 산정 방식 보기</Link>
+                </div>
+              )}
+            </div>
           </div>
+          <b className="grade-summary">{grade} · {gradeMessage(grade)}</b>
           <div
             className="grade-segments"
             role="img"
@@ -212,7 +233,28 @@ export default function KeywordTool({
       className: "metric-card",
       content: (
         <>
-          <span>검색 광고 효율</span>
+          <div className="metric-title-row">
+            <span>검색 광고 효율</span>
+            <div className="metric-help">
+              <button
+                type="button"
+                className="metric-help-button"
+                aria-label="광고 효율 산정 기준"
+                aria-expanded={metricGuideOpen === "ad"}
+                aria-controls="keyword-ad-card-popover"
+                onClick={() => setMetricGuideOpen((open) => open === "ad" ? null : "ad")}
+              >
+                ?
+              </button>
+              {metricGuideOpen === "ad" && (
+                <div className="metric-popover" id="keyword-ad-card-popover" role="tooltip">
+                  <strong>광고 효율 기준</strong>
+                  <p>네이버 검색광고 API의 경쟁도와 광고 깊이 지표를 함께 참고해 진입 부담을 표시합니다.</p>
+                  <Link href="/methodology">지표 설명 보기</Link>
+                </div>
+              )}
+            </div>
+          </div>
           <strong>{adEfficiency}</strong>
           <small>
             <em className={`competition-pill ${competitionTone(primary.competition)}`}>{primary.competition}</em>
@@ -485,14 +527,14 @@ export default function KeywordTool({
                   <span style={{ width: `${primary.mobileRate}%` }} />
                 </div>
                 <div className="volume-legend">
-                  <span>Mobile {formatNumber(primary.mobile)}</span>
-                  <span>PC {formatNumber(primary.pc)}</span>
+                  <span><i className="legend-mobile" aria-hidden="true" />Mobile {formatNumber(primary.mobile)} · {primary.mobileRate}%</span>
+                  <span><i className="legend-pc" aria-hidden="true" />PC {formatNumber(primary.pc)} · {100 - primary.mobileRate}%</span>
                 </div>
               </article>
-              {summaryCards.map((card, index) => (
+              {summaryCards.map((card) => (
                 <article
                   key={card.key}
-                  className={`${card.className}${index === summaryCards.length - 1 && summaryCards.length % 2 === 1 ? " metric-card-fill" : ""}`}
+                  className={card.className}
                 >
                   {card.content}
                 </article>
@@ -545,7 +587,7 @@ export default function KeywordTool({
                     <div className="distribution-row" key={item.keyword} title={`${item.keyword} ${formatNumber(item.total)}회`}>
                       <span className="distribution-label">{item.keyword}</span>
                       <span className="distribution-bar" aria-hidden="true">
-                        <i style={{ width: `${volumeBarWidth(item.total, distributionMaxVolume)}%` }} />
+                        <i style={{ width: `${distributionBarWidth(item.total, distributionMaxVolume)}%` }} />
                       </span>
                       <strong>{formatNumber(item.total)}</strong>
                     </div>
@@ -787,6 +829,7 @@ export default function KeywordTool({
         </div>
         <nav aria-label="사이트 정책">
           <Link href="/about">소개</Link>
+          <Link href="/methodology">산정 방식</Link>
           <Link href="/privacy">개인정보처리방침</Link>
           <Link href="/terms">이용약관</Link>
           <Link href="/contact">문의</Link>

@@ -152,6 +152,12 @@ export function volumeBarWidth(volume: number, maxVolume: number) {
   return Math.max(4, Math.round(ratio * 100));
 }
 
+export function distributionBarWidth(volume: number, maxVolume: number) {
+  if (volume <= 0 || maxVolume <= 0) return 0;
+  const ratio = volume / maxVolume;
+  return Math.max(8, Math.min(100, Math.round(ratio * 100)));
+}
+
 export function keywordMetadataTitle(keyword: string, primary: KeywordMetric) {
   const grade = keywordGrade(keywordScore(primary));
   return `${keyword} 검색량 ${formatNumber(primary.total)}회 | 경쟁도 ${grade} | 키워드랩`;

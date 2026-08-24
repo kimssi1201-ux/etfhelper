@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = "https://fastincome.kr";
-  const staticPages = ["dl", "guide", "about", "privacy", "terms", "contact"];
+  const staticPages = ["dl", "guide", "about", "privacy", "terms", "methodology", "contact"];
   const guidePosts = getGuidePosts();
   const rankingResult = await getRankingResult({ limit: 1 });
   const rankingLastModified = rankingResult.collectedAt ? new Date(rankingResult.collectedAt) : new Date();

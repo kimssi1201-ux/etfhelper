@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment, type ReactNode } from "react";
 import { keywordPath, normalizeKeyword } from "@/lib/keyword-shared";
 import type { GuideBlock } from "@/lib/guide";
 
@@ -12,7 +13,7 @@ function isInternalHref(value: string) {
 
 function renderInline(text: string) {
   const pattern = /(\[\[([^\]]+)\]\]|\[([^\]]+)\]\((https?:\/\/[^)\s]+|\/[^)\s]+)\)|\*\*([^*]+)\*\*|`([^`]+)`)/g;
-  const nodes: React.ReactNode[] = [];
+  const nodes: ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
@@ -53,29 +54,42 @@ function Heading({ block }: { block: Extract<GuideBlock, { type: "heading" }> })
 }
 
 export default function GuideMarkdown({ blocks }: GuideMarkdownProps) {
+  const middleSlotIndex = blocks.length > 2 ? Math.ceil(blocks.length / 2) - 1 : 0;
+
   return (
     <div className="guide-body">
       {blocks.map((block, index) => {
-        if (block.type === "heading") return <Heading block={block} key={`${block.id}-${index}`} />;
-        if (block.type === "paragraph") return <p key={index}>{renderInline(block.text)}</p>;
-        if (block.type === "blockquote") return <blockquote key={index}>{renderInline(block.text)}</blockquote>;
-        if (block.type === "code") {
-          return (
-            <pre key={index}>
+        let content: ReactNode;
+        if (block.type === "heading") content = <Heading block={block} />;
+        else if (block.type === "paragraph") content = <p>{renderInline(block.text)}</p>;
+        else if (block.type === "blockquote") content = <blockquote>{renderInline(block.text)}</blockquote>;
+        else if (block.type === "code") {
+          content = (
+            <pre>
               <code>{block.code}</code>
             </pre>
           );
+        } else {
+          const ListTag = block.ordered ? "ol" : "ul";
+          content = (
+            <ListTag>
+              {block.items.map((item, itemIndex) => (
+                <li key={`${item}-${itemIndex}`}>{renderInline(item)}</li>
+              ))}
+            </ListTag>
+          );
         }
 
-        const ListTag = block.ordered ? "ol" : "ul";
         return (
-          <ListTag key={index}>
-            {block.items.map((item, itemIndex) => (
-              <li key={`${item}-${itemIndex}`}>{renderInline(item)}</li>
-            ))}
-          </ListTag>
+          <Fragment key={block.type === "heading" ? `${block.id}-${index}` : index}>
+            {content}
+            {index === middleSlotIndex && (
+              <div className="ad-slot guide-body-ad" data-slot="guide-body-middle" aria-hidden="true" />
+            )}
+          </Fragment>
         );
       })}
+      <div className="ad-slot guide-body-ad guide-body-ad-bottom" data-slot="guide-body-bottom" aria-hidden="true" />
     </div>
   );
 }
