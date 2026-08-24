@@ -30,13 +30,83 @@ function isStaticAsset(pathname) {
   return pathname.startsWith("/_next/static/");
 }
 
+function isCacheableHtmlPath(pathname) {
+  return pathname === "/ranking" || pathname.startsWith("/ranking/") || pathname.startsWith("/keyword/");
+}
+
+function envString(env, name) {
+  const value = env?.[name];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function setRuntimeEnv(env) {
+  globalThis.__ETFHELPER_ENV__ = env;
+}
+
+function withHtmlCache(request, response) {
+  const pathname = new URL(request.url).pathname;
+  const contentType = response.headers.get("content-type") || "";
+  if (response.status !== 200 || !isCacheableHtmlPath(pathname) || !contentType.includes("text/html")) {
+    return response;
+  }
+
+  const headers = new Headers(response.headers);
+  headers.set("cache-control", "public, max-age=300, s-maxage=86400, stale-while-revalidate=86400");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function collectionUrl(env) {
+  const configured = envString(env, "RANKING_COLLECT_URL");
+  if (!configured) return "https://fastincome.kr/api/ranking/collect";
+  try {
+    const url = new URL(configured);
+    return url.pathname === "/" ? new URL("/api/ranking/collect", url).toString() : url.toString();
+  } catch {
+    return "https://fastincome.kr/api/ranking/collect";
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
+    setRuntimeEnv(env);
+
     if (isStaticAsset(new URL(request.url).pathname)) {
       return env.ASSETS.fetch(request);
     }
 
-    return worker.fetch(request, env, ctx);
+    const response = await worker.fetch(request, env, ctx);
+    return withHtmlCache(request, response);
+  },
+
+  async scheduled(controller, env, ctx) {
+    setRuntimeEnv(env);
+    const secret = envString(env, "RANKING_COLLECT_SECRET");
+    if (!secret) {
+      console.warn("Keyword ranking scheduled collection skipped: RANKING_COLLECT_SECRET is not configured.");
+      return;
+    }
+
+    const task = worker.fetch(new Request(collectionUrl(env), {
+      method: "POST",
+      headers: {
+        authorization: \`Bearer \${secret}\`,
+        "x-scheduled-cron": controller?.cron || "",
+      },
+    }), env, ctx).then(async (response) => {
+      if (!response.ok) {
+        console.warn("Keyword ranking scheduled collection failed", {
+          status: response.status,
+          body: await response.text().catch(() => ""),
+        });
+      }
+    });
+
+    ctx.waitUntil(task);
+    await task;
   },
 };
 `,

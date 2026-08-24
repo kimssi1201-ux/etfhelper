@@ -13,6 +13,7 @@ import {
   normalizeKeyword,
 } from "@/lib/keyword-shared";
 import type { KeywordApiResponse } from "@/lib/keyword-shared";
+import { getKeywordTrend } from "@/lib/ranking-store";
 
 type KeywordPageProps = {
   params: Promise<{ keyword: string }>;
@@ -129,6 +130,7 @@ export default async function KeywordPage({ params }: KeywordPageProps) {
   const keyword = normalizeKeyword(await getRouteKeyword(params)) || defaultKeyword;
   const origin = await getRequestOrigin();
   const { data, error } = await loadKeywordPageData(keyword);
+  const historyTrend = await getKeywordTrend(keyword, 30);
   const canonicalUrl = new URL(keywordPath(keyword), origin).toString();
   const jsonLd = buildKeywordJsonLd(keyword, data, canonicalUrl);
 
@@ -140,7 +142,12 @@ export default async function KeywordPage({ params }: KeywordPageProps) {
           __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
         }}
       />
-      <KeywordTool initialData={data} initialError={error} initialKeyword={keyword} />
+      <KeywordTool
+        historyTrend={historyTrend}
+        initialData={data}
+        initialError={error}
+        initialKeyword={keyword}
+      />
     </>
   );
 }

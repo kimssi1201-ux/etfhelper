@@ -7,6 +7,8 @@ const ORIGIN = "https://dividend.example";
 const workerUrl = new URL("../dist/server/index.js", import.meta.url);
 workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
 const workerPromise = import(workerUrl.href).then(({ default: worker }) => worker);
+const rankingKeywordsPromise = readFile(new URL("../data/ranking-keywords.json", import.meta.url), "utf8")
+  .then((source) => JSON.parse(source));
 const stocksPromise = readFile(new URL("../lib/stocks.ts", import.meta.url), "utf8").then((source) => {
   const javascript = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
@@ -144,6 +146,31 @@ test("/dl renders the keyword lab route", async () => {
   assert.match(html, /keyword-tabs/);
 });
 
+test("ranking pages server-render without mock data when D1 is empty", async () => {
+  const paths = ["/ranking", "/ranking/rising", "/ranking/side-income-finance"];
+
+  for (const path of paths) {
+    const response = await render(path);
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.match(html, /키워드랩/);
+    assert.match(html, /ranking-shell/);
+    assert.match(html, /데이터 수집|수집 중|데이터를 찾을 수 없습니다/);
+    assert.doesNotMatch(html, /샘플 데이터|부업 99,600/);
+  }
+});
+
+test("ranking keyword config starts with 300+ categorized candidates", async () => {
+  const config = await rankingKeywordsPromise;
+  const categories = config.categories ?? [];
+  const keywordCount = categories.reduce((count, category) => count + (category.keywords?.length ?? 0), 0);
+
+  assert.equal(categories.length, 8);
+  assert.ok(keywordCount >= 300);
+  assert.ok(categories.every((category) => category.slug && category.name));
+  assert.ok(categories.every((category) => category.keywords.length >= 30 && category.keywords.length <= 40));
+});
+
 test("keyword pages server-render unique SEO content and canonical metadata", async () => {
   await withMockSearchAd(async () => {
     const encodedKeyword = encodeURIComponent("부업");
@@ -194,6 +221,9 @@ test("Cloudflare Pages output includes the advanced-mode SSR worker", async () =
 
   assert.match(workerSource, /export default/);
   assert.match(workerSource, /env\.ASSETS\.fetch\(request\)/);
+  assert.match(workerSource, /__ETFHELPER_ENV__/);
+  assert.match(workerSource, /async scheduled/);
+  assert.match(workerSource, /RANKING_COLLECT_SECRET/);
   assert.match(serverEntrySource, /import\(`\.\/ssr\/index\.js`\)/);
   assert.match(assetsIgnore, /^_worker\.js$/m);
   assert.match(assetsIgnore, /^_worker\.js\/\*\*$/m);

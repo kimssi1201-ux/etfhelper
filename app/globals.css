@@ -2121,6 +2121,322 @@ button:disabled {
   transform: translateY(0);
 }
 
+.keyword-history-card {
+  width: calc(100% - 32px);
+  max-width: 980px;
+  margin: 12px auto 0;
+  padding: 16px;
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.keyword-history-chart {
+  margin-top: 12px;
+}
+
+.keyword-history-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 132px;
+}
+
+.keyword-history-chart line {
+  stroke: #dce4de;
+  stroke-width: 1;
+}
+
+.keyword-history-chart polyline {
+  fill: none;
+  stroke: var(--brand);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 4;
+}
+
+.keyword-history-labels,
+.keyword-history-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.keyword-history-labels {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.keyword-history-summary {
+  margin: 12px 0 0;
+}
+
+.keyword-history-summary div {
+  min-width: 0;
+  padding: 0;
+  border-top: 0;
+}
+
+.keyword-history-summary dt,
+.keyword-history-summary dd {
+  margin: 0;
+  font-size: 12px;
+}
+
+.keyword-history-summary dt {
+  color: var(--ink-3);
+  font-weight: 800;
+}
+
+.keyword-history-summary dd {
+  color: var(--ink);
+  font-family: var(--font-data-mono), ui-monospace, monospace;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.ranking-shell {
+  min-height: 100vh;
+  background: #f6f8fb;
+  color: var(--ink);
+}
+
+.ranking-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--rule);
+  background: #fffffff2;
+  backdrop-filter: blur(10px);
+}
+
+.ranking-header nav {
+  display: flex;
+  gap: 14px;
+}
+
+.ranking-header nav a {
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.ranking-hero,
+.ranking-nav,
+.ranking-panel {
+  width: calc(100% - 32px);
+  max-width: 980px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.ranking-hero {
+  padding: 32px 0 18px;
+}
+
+.ranking-hero p {
+  margin: 0 0 8px;
+  color: #0b8b50;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.ranking-hero h1 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.12;
+  letter-spacing: 0;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.ranking-hero span {
+  display: block;
+  margin-top: 10px;
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.55;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.ranking-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 0;
+  background: color-mix(in srgb, #f6f8fb 95%, transparent);
+  border-bottom: 1px solid var(--rule);
+}
+
+.ranking-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.ranking-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  min-width: max-content;
+  padding: 0 12px;
+  border: 1px solid #dfe7e2;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.ranking-nav a.active {
+  border-color: color-mix(in srgb, var(--brand) 34%, #fff);
+  background: var(--brand-soft);
+  color: #0b8b50;
+}
+
+.ranking-panel {
+  padding: 16px 0 48px;
+}
+
+.ranking-empty {
+  padding: 36px 16px;
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  background: #fff;
+  text-align: center;
+}
+
+.ranking-empty p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.ranking-empty div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.ranking-empty a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid #dfe7e2;
+  border-radius: 999px;
+  color: #0b8b50;
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.ranking-table {
+  display: grid;
+  gap: 8px;
+}
+
+.ranking-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 8px 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  background: #fff;
+  color: inherit;
+  text-decoration: none;
+}
+
+.ranking-row-head {
+  display: none;
+}
+
+.ranking-rank {
+  display: grid;
+  gap: 2px;
+  color: var(--ink);
+  font-family: var(--font-data-mono), ui-monospace, monospace;
+  font-size: 18px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.ranking-rank em {
+  color: var(--ink-3);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.ranking-rank em.up,
+.ranking-change.up {
+  color: #0b8b50;
+}
+
+.ranking-rank em.down,
+.ranking-change.down {
+  color: #bf3434;
+}
+
+.ranking-row strong {
+  min-width: 0;
+  font-size: 15px;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.ranking-volume,
+.ranking-change,
+.ranking-grade {
+  font-family: var(--font-data-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.ranking-volume {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 900;
+  text-align: right;
+}
+
+.ranking-change {
+  grid-column: 2;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.ranking-grade {
+  justify-self: end;
+  min-width: 32px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: #0b8b50;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.ranking-category {
+  grid-column: 2 / -1;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 @media (min-width: 760px) {
   .keyword-card-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2128,6 +2444,47 @@ button:disabled {
 
   .scroll-top-button {
     right: max(18px, calc((100% - 980px) / 2));
+  }
+
+  .ranking-header {
+    padding-right: max(16px, calc((100% - 980px) / 2));
+    padding-left: max(16px, calc((100% - 980px) / 2));
+  }
+
+  .ranking-hero h1 {
+    font-size: 42px;
+  }
+
+  .ranking-row,
+  .ranking-row-head {
+    grid-template-columns: 74px minmax(180px, 1.6fr) minmax(120px, .9fr) minmax(104px, .8fr) 72px minmax(120px, .9fr);
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 10px;
+  }
+
+  .ranking-row-head {
+    display: grid;
+    border-color: transparent;
+    background: transparent;
+    color: var(--ink-3);
+    font-size: 11px;
+    font-weight: 900;
+  }
+
+  .ranking-rank {
+    grid-template-columns: 28px 1fr;
+    align-items: center;
+    font-size: 15px;
+  }
+
+  .ranking-change,
+  .ranking-category {
+    grid-column: auto;
+  }
+
+  .ranking-grade {
+    justify-self: start;
   }
 }
 

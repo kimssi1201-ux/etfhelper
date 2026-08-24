@@ -28,7 +28,7 @@ import {
   popularKeywords,
   volumeBarWidth,
 } from "@/lib/keyword-shared";
-import type { KeywordApiResponse, KeywordMetric, KeywordTabId } from "@/lib/keyword-shared";
+import type { KeywordApiResponse, KeywordMetric, KeywordTabId, KeywordTrendPoint } from "@/lib/keyword-shared";
 
 const relatedSeedInputs: Array<Omit<KeywordMetric, "total" | "mobileRate">> = [
   { keyword: "부업", pc: 18400, mobile: 81200, competition: "높음", bid: 920 },
@@ -56,10 +56,30 @@ const minVolumeOptions = [
 ];
 
 type KeywordToolProps = {
+  historyTrend?: KeywordTrendPoint[] | null;
   initialData?: KeywordApiResponse | null;
   initialError?: string | null;
   initialKeyword?: string;
 };
+
+function compactTrendDate(value: string) {
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) return value;
+  return `${Number(month)}/${Number(day)}`;
+}
+
+function trendPolyline(points: KeywordTrendPoint[]) {
+  const width = 300;
+  const height = 110;
+  const max = Math.max(...points.map((point) => point.totalVolume), 1);
+  const min = Math.min(...points.map((point) => point.totalVolume));
+  const range = Math.max(1, max - min);
+  return points.map((point, index) => {
+    const x = points.length === 1 ? width / 2 : (index / (points.length - 1)) * width;
+    const y = 8 + height - ((point.totalVolume - min) / range) * height;
+    return `${Math.round(x * 10) / 10},${Math.round(y * 10) / 10}`;
+  }).join(" ");
+}
 
 function keywordFromLocation(fallback: string) {
   if (typeof window === "undefined") return normalizeKeyword(fallback) || defaultKeyword;
@@ -83,6 +103,7 @@ function tabFromLocation(fallback: KeywordTabId) {
 }
 
 export default function KeywordTool({
+  historyTrend,
   initialData = null,
   initialError = null,
   initialKeyword = defaultKeyword,
@@ -142,6 +163,14 @@ export default function KeywordTool({
   const volumeRankKeywords = results.slice(0, 5);
   const distributionKeywords = results.slice(0, 8);
   const distributionMaxVolume = Math.max(...distributionKeywords.map((item) => item.total), 1);
+  const historyPoints = historyTrend ?? [];
+  const showHistoryTrend = historyTrend !== undefined && normalizeKeyword(submittedKeyword) === resolvedInitialKeyword;
+  const hasHistoryChart = historyPoints.length >= 7;
+  const historyLatest = historyPoints.at(-1) ?? null;
+  const historyFirst = historyPoints[0] ?? null;
+  const historyMax = Math.max(...historyPoints.map((point) => point.totalVolume), 0);
+  const historyMin = Math.min(...historyPoints.map((point) => point.totalVolume), 0);
+  const historyLine = hasHistoryChart ? trendPolyline(historyPoints) : "";
   const maxRelatedVolume = Math.max(...filteredResults.map((item) => item.total), 1);
   const documentStats = data?.openApi?.documentStats ?? null;
   const trend = data?.openApi?.trend ?? [];
@@ -476,6 +505,36 @@ export default function KeywordTool({
           )}
           <div className="ad-slot keyword-summary-ad" data-slot="keyword-summary-after" aria-hidden="true" />
           {error && showingSampleData && <div className="keyword-alert" role="status">{error}. 개발 환경에서만 샘플 데이터를 표시합니다.</div>}
+
+          {showHistoryTrend && (
+            <section className="keyword-history-card" aria-label="최근 30일 검색량 추이">
+              <div className="keyword-section-title">
+                <p>30 DAY TREND</p>
+                <h2>최근 30일 검색량 추이</h2>
+              </div>
+              {hasHistoryChart ? (
+                <>
+                  <div className="keyword-history-chart">
+                    <svg viewBox="0 0 300 132" role="img" aria-label={`${submittedKeyword} 최근 30일 검색량 추이`}>
+                      <line x1="0" x2="300" y1="118" y2="118" />
+                      <polyline points={historyLine} />
+                    </svg>
+                    <div className="keyword-history-labels" aria-hidden="true">
+                      <span>{historyFirst ? compactTrendDate(historyFirst.collectedDate) : ""}</span>
+                      <span>{historyLatest ? compactTrendDate(historyLatest.collectedDate) : ""}</span>
+                    </div>
+                  </div>
+                  <dl className="keyword-history-summary">
+                    <div><dt>최근 값</dt><dd>{historyLatest ? formatNumber(historyLatest.totalVolume) : "-"}</dd></div>
+                    <div><dt>최고</dt><dd>{formatNumber(historyMax)}</dd></div>
+                    <div><dt>최저</dt><dd>{formatNumber(historyMin)}</dd></div>
+                  </dl>
+                </>
+              ) : (
+                <div className="keyword-empty" role="status"><p>데이터 수집 중</p></div>
+              )}
+            </section>
+          )}
 
           {primary && (
             <section className="keyword-grid">

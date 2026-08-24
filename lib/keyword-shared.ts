@@ -18,6 +18,14 @@ export type KeywordApiResponse = {
   openApi?: NaverOpenApiInsights;
 };
 
+export type KeywordTrendPoint = {
+  collectedAt: string;
+  collectedDate: string;
+  pcVolume: number;
+  mobileVolume: number;
+  totalVolume: number;
+};
+
 export type KeywordTabId = "summary" | "briefing" | "cards" | "ranking" | "related";
 
 export const defaultKeyword = "부업";
