@@ -61,9 +61,12 @@ const keywordNavItems = [
   { label: "랭킹", href: "/ranking" },
   { label: "가이드", href: "/guide" },
   { label: "소개", href: "/about" },
+  { label: "문의", href: "/contact" },
+];
+
+const keywordPolicyItems = [
   { label: "개인정보처리방침", href: "/privacy" },
   { label: "이용약관", href: "/terms" },
-  { label: "문의", href: "/contact" },
 ];
 
 type KeywordToolProps = {
@@ -578,6 +581,16 @@ export default function KeywordTool({
                 </Link>
               ))}
             </nav>
+            <div className="keyword-drawer-footer">
+              <p>검색량과 경쟁도를 빠르게 확인하는 키워드 분석 도구</p>
+              <div>
+                {keywordPolicyItems.map((item) => (
+                  <Link href={item.href} key={item.href} onClick={() => setMenuOpen(false)} prefetch={false}>
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       )}

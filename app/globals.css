@@ -1360,7 +1360,9 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
   font-size: 14px;
+  white-space: nowrap;
 }
 
 .keyword-logo i,
@@ -2437,7 +2439,7 @@ button:disabled {
   font-weight: 800;
 }
 
-@media (min-width: 760px) {
+@media (min-width: 768px) {
   .keyword-card-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -3373,13 +3375,15 @@ button:disabled {
 .keyword-desktop-nav {
   display: none;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   margin-left: auto;
+  min-width: 0;
 }
 
 .keyword-desktop-nav a {
+  flex: 0 0 auto;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   text-decoration: none;
   white-space: nowrap;
@@ -3409,7 +3413,7 @@ button:disabled {
   position: absolute;
   inset: 0;
   border: 0;
-  background: rgb(15 23 42 / 44%);
+  background: rgb(0 0 0 / 50%);
 }
 
 .keyword-drawer {
@@ -3473,6 +3477,34 @@ button:disabled {
   border-radius: 10px;
   color: var(--ink);
   font-size: 15px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.keyword-drawer-footer {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+
+.keyword-drawer-footer p {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.keyword-drawer-footer div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 10px;
+}
+
+.keyword-drawer-footer a {
+  color: var(--ink-3);
+  font-size: 11px;
   font-weight: 900;
   text-decoration: none;
 }

@@ -152,10 +152,10 @@ export function volumeBarWidth(volume: number, maxVolume: number) {
   return Math.max(4, Math.round(ratio * 100));
 }
 
-export function distributionBarWidth(volume: number, maxVolume: number) {
-  if (volume <= 0 || maxVolume <= 0) return 0;
-  const ratio = volume / maxVolume;
-  return Math.max(8, Math.min(100, ratio * 100));
+export function distributionBarWidth(value: number, maxValue: number) {
+  if (value <= 0 || maxValue <= 0) return 0;
+  const width = Math.max(6, (value / maxValue) * 100);
+  return width;
 }
 
 export function keywordMetadataTitle(keyword: string, primary: KeywordMetric) {
