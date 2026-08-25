@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 export const metadata = {
   title: { absolute: "서비스 소개 | 키워드랩" },
   description: "키워드랩은 네이버 검색광고 API 기반으로 키워드 검색량과 연관 키워드를 확인하는 분석 도구입니다.",
@@ -9,7 +7,7 @@ export default function AboutPage() {
   return (
     <main className="legal-shell">
       <article className="legal-card">
-        <Link href="/" className="legal-back">← 키워드랩으로 돌아가기</Link>
+        <a href="/" className="legal-back">← 키워드랩으로 돌아가기</a>
         <p className="legal-eyebrow">ABOUT</p>
         <h1>키워드랩 서비스 소개</h1>
         <p>
@@ -31,7 +29,7 @@ export default function AboutPage() {
           <h2>데이터 기준</h2>
           <p>
             검색량 데이터는 네이버 검색광고 API에서 제공되는 범위 안에서 표시됩니다. API 제공 범위, 갱신 주기, 광고 계정 상태에 따라 실제 화면의 데이터가 지연되거나 일부 제한될 수 있습니다.
-            자세한 기준은 <Link href="/methodology">데이터 산정 방식</Link> 페이지에 공개합니다.
+            자세한 기준은 <a href="/methodology">데이터 산정 방식</a> 페이지에 공개합니다.
           </p>
         </section>
         <section>

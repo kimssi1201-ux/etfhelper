@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 export const metadata = {
   title: { absolute: "이용약관 | 키워드랩" },
   description: "키워드랩 서비스 이용 조건과 데이터 이용 안내입니다.",
@@ -9,7 +7,7 @@ export default function TermsPage() {
   return (
     <main className="legal-shell">
       <article className="legal-card">
-        <Link href="/" className="legal-back">← 키워드랩으로 돌아가기</Link>
+        <a href="/" className="legal-back">← 키워드랩으로 돌아가기</a>
         <p className="legal-eyebrow">TERMS</p>
         <h1>이용약관</h1>
         <p>시행일: 2026년 8월 24일</p>
@@ -26,7 +24,7 @@ export default function TermsPage() {
             매출 또는 콘텐츠 성과를 보장하지 않습니다.
           </p>
           <p>
-            지표의 의미와 산정 기준은 <Link href="/methodology">데이터 산정 방식</Link> 페이지에서 확인할 수 있습니다.
+            지표의 의미와 산정 기준은 <a href="/methodology">데이터 산정 방식</a> 페이지에서 확인할 수 있습니다.
           </p>
         </section>
         <section>

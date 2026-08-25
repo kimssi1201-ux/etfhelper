@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Fragment, type ReactNode } from "react";
 import { keywordPath, normalizeKeyword } from "@/lib/keyword-shared";
 import type { GuideBlock } from "@/lib/guide";
@@ -23,15 +22,15 @@ function renderInline(text: string) {
     if (match[2]) {
       const keyword = normalizeKeyword(match[2]);
       nodes.push(
-        <Link className="guide-keyword-link" href={keywordPath(keyword)} key={`${match.index}-keyword`}>
+        <a className="guide-keyword-link" href={keywordPath(keyword)} key={`${match.index}-keyword`}>
           {keyword}
-        </Link>,
+        </a>,
       );
     } else if (match[3] && match[4]) {
       const label = match[3];
       const href = match[4];
       nodes.push(isInternalHref(href)
-        ? <Link href={href} key={`${match.index}-link`}>{label}</Link>
+        ? <a href={href} key={`${match.index}-link`}>{label}</a>
         : <a href={href} key={`${match.index}-link`} rel="noopener noreferrer" target="_blank">{label}</a>);
     } else if (match[5]) {
       nodes.push(<strong key={`${match.index}-strong`}>{match[5]}</strong>);

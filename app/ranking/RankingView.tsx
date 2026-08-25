@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { formatNumber, gradeBadgeLabel, keywordPath } from "@/lib/keyword-shared";
 import { rankingCategories } from "@/lib/ranking-candidates";
@@ -36,9 +35,9 @@ function NavigationLink({ href, activePath, children }: {
   children: ReactNode;
 }) {
   return (
-    <Link className={activePath === href ? "active" : ""} href={href}>
+    <a className={activePath === href ? "active" : ""} href={href}>
       {children}
-    </Link>
+    </a>
   );
 }
 
@@ -54,10 +53,10 @@ export default function RankingView({
   return (
     <main className="ranking-shell">
       <header className="ranking-header">
-        <Link href="/" className="keyword-logo"><i aria-hidden="true">K</i> 키워드랩</Link>
+        <a href="/" className="keyword-logo"><i aria-hidden="true">K</i> 키워드랩</a>
         <nav aria-label="키워드랩 메뉴">
-          <Link href="/dl">분석</Link>
-          <Link href="/ranking">랭킹</Link>
+          <a href="/dl">분석</a>
+          <a href="/ranking">랭킹</a>
         </nav>
       </header>
 
@@ -82,9 +81,9 @@ export default function RankingView({
           <div className="ranking-empty">
             <p>{emptyMessage}</p>
             <div>
-              <Link href={keywordPath("부업")}>부업</Link>
-              <Link href={keywordPath("다이어트")}>다이어트</Link>
-              <Link href={keywordPath("일본여행")}>일본여행</Link>
+              <a href={keywordPath("부업")}>부업</a>
+              <a href={keywordPath("다이어트")}>다이어트</a>
+              <a href={keywordPath("일본여행")}>일본여행</a>
             </div>
           </div>
         ) : (
@@ -100,7 +99,7 @@ export default function RankingView({
             {result.rows.map((row) => {
               const movement = rankMovement(row);
               return (
-                <Link className="ranking-row" href={keywordPath(row.keyword)} key={row.keyword} role="row">
+                <a className="ranking-row" href={keywordPath(row.keyword)} key={row.keyword} role="row">
                   <span className="ranking-rank" role="cell">
                     {row.rank}
                     <em className={trendTone(row.rankChange)}>{movement}</em>
@@ -114,7 +113,7 @@ export default function RankingView({
                     {row.competitionGrade}
                   </span>
                   <span className="ranking-category" role="cell">{row.category}</span>
-                </Link>
+                </a>
               );
             })}
           </div>

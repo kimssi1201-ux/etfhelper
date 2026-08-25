@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import GuideMarkdown from "@/app/guide/GuideMarkdown";
 import { getRequestOrigin } from "@/app/request-origin";
@@ -118,17 +117,17 @@ export default async function GuideArticlePage({ params }: GuideArticlePageProps
       />
 
       <header className="guide-header">
-        <Link href="/" className="keyword-logo"><i aria-hidden="true">K</i> 키워드랩</Link>
+        <a href="/" className="keyword-logo"><i aria-hidden="true">K</i> 키워드랩</a>
         <nav aria-label="키워드랩 메뉴">
-          <Link href="/dl">분석</Link>
-          <Link href="/ranking">랭킹</Link>
-          <Link href="/guide">가이드</Link>
+          <a href="/dl">분석</a>
+          <a href="/ranking">랭킹</a>
+          <a href="/guide">가이드</a>
         </nav>
       </header>
 
       <article className="guide-article">
         <header className="guide-article-hero">
-          <Link href="/guide">가이드 목록</Link>
+          <a href="/guide">가이드 목록</a>
           <p>{post.category}</p>
           <h1>{post.title}</h1>
           {post.description && <span>{post.description}</span>}
@@ -168,11 +167,11 @@ export default async function GuideArticlePage({ params }: GuideArticlePageProps
               ) : (
                 <div className="guide-keyword-card-grid">
                   {relatedKeywords.map((keyword, index) => (
-                    <Link href={keywordPath(keyword)} key={keyword}>
+                    <a href={keywordPath(keyword)} key={keyword}>
                       <span>{String(index + 1).padStart(2, "0")}</span>
                       <strong>{keyword}</strong>
                       <small>키워드 상세 보기</small>
-                    </Link>
+                    </a>
                   ))}
                 </div>
               )}
@@ -180,7 +179,7 @@ export default async function GuideArticlePage({ params }: GuideArticlePageProps
 
             <footer className="guide-article-footer">
               <span>{formatNumber(post.keywords.length)}개 키워드 연결</span>
-              <Link href="/guide">다른 가이드 보기</Link>
+              <a href="/guide">다른 가이드 보기</a>
             </footer>
           </div>
         </div>

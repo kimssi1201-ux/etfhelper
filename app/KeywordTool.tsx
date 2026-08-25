@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Fragment, useEffect, useRef, useState } from "react";
 import {
   competitionScore,
@@ -223,7 +222,7 @@ export default function KeywordTool({
                 <div className="metric-popover" id="keyword-grade-card-popover" role="tooltip">
                   <strong>등급 산정 기준</strong>
                   <p>검색량, 모바일 비중, 경쟁도 점수를 합산해 1~100점으로 환산한 뒤 S~D로 구분합니다.</p>
-                  <Link href="/methodology" prefetch={false}>자세한 산정 방식 보기</Link>
+                  <a href="/methodology">자세한 산정 방식 보기</a>
                 </div>
               )}
             </div>
@@ -266,7 +265,7 @@ export default function KeywordTool({
                 <div className="metric-popover" id="keyword-ad-card-popover" role="tooltip">
                   <strong>광고 효율 기준</strong>
                   <p>네이버 검색광고 API의 경쟁도와 광고 깊이 지표를 함께 참고해 진입 부담을 표시합니다.</p>
-                  <Link href="/methodology" prefetch={false}>지표 설명 보기</Link>
+                  <a href="/methodology">지표 설명 보기</a>
                 </div>
               )}
             </div>
@@ -328,9 +327,9 @@ export default function KeywordTool({
       {showEmptyLinks && (
         <nav className="keyword-empty-links" aria-label="인기 키워드">
           {popularKeywords.map((item) => (
-            <Link key={item} href={keywordPath(item)} prefetch={false}>
+            <a key={item} href={keywordPath(item)}>
               {item}
-            </Link>
+            </a>
           ))}
         </nav>
       )}
@@ -533,10 +532,10 @@ export default function KeywordTool({
     <main className="keyword-shell">
       <header className="keyword-header" id="search">
         <div className="keyword-header-top">
-          <Link href="/" className="keyword-logo" prefetch={false}><i aria-hidden="true">K</i> 키워드랩</Link>
+          <a href="/" className="keyword-logo"><i aria-hidden="true">K</i> 키워드랩</a>
           <nav className="keyword-desktop-nav" aria-label="주요 메뉴">
             {keywordNavItems.map((item) => (
-              <Link href={item.href} key={item.href} prefetch={false}>{item.label}</Link>
+              <a href={item.href} key={item.href}>{item.label}</a>
             ))}
           </nav>
           <button
@@ -576,18 +575,18 @@ export default function KeywordTool({
             </div>
             <nav aria-label="모바일 메뉴">
               {keywordNavItems.map((item) => (
-                <Link href={item.href} key={item.href} onClick={() => setMenuOpen(false)} prefetch={false}>
+                <a href={item.href} key={item.href} onClick={() => setMenuOpen(false)}>
                   {item.label}
-                </Link>
+                </a>
               ))}
             </nav>
             <div className="keyword-drawer-footer">
               <p>검색량과 경쟁도를 빠르게 확인하는 키워드 분석 도구</p>
               <div>
                 {keywordPolicyItems.map((item) => (
-                  <Link href={item.href} key={item.href} onClick={() => setMenuOpen(false)} prefetch={false}>
+                  <a href={item.href} key={item.href} onClick={() => setMenuOpen(false)}>
                     {item.label}
-                  </Link>
+                  </a>
                 ))}
               </div>
             </div>
@@ -612,17 +611,16 @@ export default function KeywordTool({
         </form>
         <div className="keyword-recent" aria-label="최근 키워드">
           {popularKeywords.map((item) => (
-            <Link
+            <a
               key={item}
               href={keywordPath(item)}
-              prefetch={false}
               onClick={(event) => {
                 event.preventDefault();
                 selectKeyword(item);
               }}
             >
               {item}
-            </Link>
+            </a>
           ))}
         </div>
       </section>
@@ -966,11 +964,11 @@ export default function KeywordTool({
           <p>검색량 데이터는 광고 API 제공 범위와 지연 시간에 따라 달라질 수 있습니다.</p>
         </div>
         <nav aria-label="사이트 정책">
-          <Link href="/about" prefetch={false}>소개</Link>
-          <Link href="/methodology" prefetch={false}>산정 방식</Link>
-          <Link href="/privacy" prefetch={false}>개인정보처리방침</Link>
-          <Link href="/terms" prefetch={false}>이용약관</Link>
-          <Link href="/contact" prefetch={false}>문의</Link>
+          <a href="/about">소개</a>
+          <a href="/methodology">산정 방식</a>
+          <a href="/privacy">개인정보처리방침</a>
+          <a href="/terms">이용약관</a>
+          <a href="/contact">문의</a>
         </nav>
       </footer>
       <button

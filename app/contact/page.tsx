@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 export const metadata = {
   title: { absolute: "문의 | 키워드랩" },
   description: "키워드랩 서비스, 개인정보, 광고, 오류 관련 문의 안내입니다.",
@@ -9,7 +7,7 @@ export default function ContactPage() {
   return (
     <main className="legal-shell">
       <article className="legal-card">
-        <Link href="/" className="legal-back">← 키워드랩으로 돌아가기</Link>
+        <a href="/" className="legal-back">← 키워드랩으로 돌아가기</a>
         <p className="legal-eyebrow">CONTACT</p>
         <h1>문의</h1>
         <p>

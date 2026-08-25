@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { getRequestOrigin } from "@/app/request-origin";
 import { getGuideCategories, getGuidePosts, guidePath } from "@/lib/guide";
 
@@ -62,11 +61,11 @@ export default async function GuidePage({ searchParams }: GuidePageProps) {
   return (
     <main className="guide-shell">
       <header className="guide-header">
-        <Link href="/" className="keyword-logo"><i aria-hidden="true">K</i> 키워드랩</Link>
+        <a href="/" className="keyword-logo"><i aria-hidden="true">K</i> 키워드랩</a>
         <nav aria-label="키워드랩 메뉴">
-          <Link href="/dl">분석</Link>
-          <Link href="/ranking">랭킹</Link>
-          <Link href="/guide">가이드</Link>
+          <a href="/dl">분석</a>
+          <a href="/ranking">랭킹</a>
+          <a href="/guide">가이드</a>
         </nav>
       </header>
 
@@ -77,15 +76,15 @@ export default async function GuidePage({ searchParams }: GuidePageProps) {
       </section>
 
       <nav className="guide-filter" aria-label="가이드 카테고리">
-        <Link className={!selectedCategory ? "active" : ""} href="/guide">전체</Link>
+        <a className={!selectedCategory ? "active" : ""} href="/guide">전체</a>
         {categories.map((category) => (
-          <Link
+          <a
             className={selectedCategory === category ? "active" : ""}
             href={guideCategoryHref(category)}
             key={category}
           >
             {category}
-          </Link>
+          </a>
         ))}
       </nav>
 
@@ -95,7 +94,7 @@ export default async function GuidePage({ searchParams }: GuidePageProps) {
             <p>아직 등록된 가이드 글이 없습니다</p>
           </div>
         ) : filteredPosts.map((post) => (
-          <Link className="guide-list-card" href={guidePath(post.slug)} key={post.slug}>
+          <a className="guide-list-card" href={guidePath(post.slug)} key={post.slug}>
             {post.thumbnail ? <img src={post.thumbnail} alt="" loading="lazy" /> : <span aria-hidden="true">Guide</span>}
             <div>
               <p>{post.category}</p>
@@ -103,7 +102,7 @@ export default async function GuidePage({ searchParams }: GuidePageProps) {
               <small>{formatGuideDate(post.date)}</small>
               {post.description && <strong>{post.description}</strong>}
             </div>
-          </Link>
+          </a>
         ))}
       </section>
     </main>

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { gradeCriteria } from "@/lib/keyword-shared";
 
 export const metadata = {
@@ -17,7 +16,7 @@ export default function MethodologyPage() {
   return (
     <main className="legal-shell">
       <article className="legal-card methodology-card">
-        <Link href="/" className="legal-back">← 키워드랩으로 돌아가기</Link>
+        <a href="/" className="legal-back">← 키워드랩으로 돌아가기</a>
         <p className="legal-eyebrow">METHODOLOGY</p>
         <h1>데이터 산정 방식</h1>
         <p>
@@ -128,7 +127,7 @@ export default function MethodologyPage() {
         <section>
           <h2>7. 오류와 정정 요청</h2>
           <p>
-            데이터가 명백히 잘못 표시되거나 설명이 부족한 지표가 있다면 <Link href="/contact">문의 페이지</Link> 또는
+            데이터가 명백히 잘못 표시되거나 설명이 부족한 지표가 있다면 <a href="/contact">문의 페이지</a> 또는
             {" "}<a href="mailto:contact@fastincome.kr">contact@fastincome.kr</a> 로 알려주세요.
             확인 가능한 키워드, 페이지 URL, 조회 시각을 함께 보내주시면 재현과 정정에 도움이 됩니다.
           </p>

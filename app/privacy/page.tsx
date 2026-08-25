@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 export const metadata = {
   title: { absolute: "개인정보처리방침 | 키워드랩" },
   description: "키워드랩의 개인정보 수집 항목, 보관 기간, 쿠키, 광고 및 제3자 서비스 이용 방침입니다.",
@@ -9,7 +7,7 @@ export default function PrivacyPage() {
   return (
     <main className="legal-shell">
       <article className="legal-card">
-        <Link href="/" className="legal-back">← 키워드랩으로 돌아가기</Link>
+        <a href="/" className="legal-back">← 키워드랩으로 돌아가기</a>
         <p className="legal-eyebrow">PRIVACY</p>
         <h1>개인정보처리방침</h1>
         <p>시행일: 2026년 8월 24일</p>
